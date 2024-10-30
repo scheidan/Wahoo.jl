@@ -1,5 +1,202 @@
 module Wahoo
 
-# Write your package code here.
+export forward_filter
+
+using CUDA
+import NNlib
+import cuDNN
+
+import GeoArrays
+
+
+"""
+Compute convolution kernel and the number of time steps
+
+D: diffusion coefficient
+h: spatial resolution
+"""
+function make_kernel(;D, h)
+
+    # compute 1/Δ, so that 4*D*Δ/h^2 < 1
+    n_steps = ceil(Int, 4*D/(h^2*0.99))
+    Δ = 1f0/n_steps
+    @assert 4*D*Δ/h^2 < 1
+
+    # convolution kernel
+    H = Float32[0 0 0;
+                0 1 0;
+                0 0 0]
+
+    H = H + Float32(D*Δ/h^2) .* Float32[0  1  0;
+                                        1 -4  1;
+                                        0  1  0]
+    H = reshape(H, 3, 3, 1, 1)
+
+    H, n_steps
+end
+
+
+# ---
+# depth likelihood
+
+function p_depth(dobs, dmax)
+    if dobs > dmax
+        return zero(dobs)
+    else
+        # # uniform depth
+        # one(dobs)/dmax
+
+        # exponential
+        scale = 30f0
+        Z = 1 - exp(-dmax/scale) # normalisation due to truncation
+        exp(-(dmax - dobs)/scale)/(scale * Z)
+    end
+end
+
+# ---
+# acoustic likelihood
+
+function p_acoustic(obs::Int, dist::T; d0 = 400f0, k = 100f0)::T where T
+    if obs == 0
+        # 1/(1 + exp(-(dist - d0)/k))
+        return NNlib.sigmoid((dist - d0)/k)
+    end
+    if obs == 1
+        # 1 - 1/(1 + exp(-(dist - d0)/k))
+        return 1 - NNlib.sigmoid((dist - d0)/k)
+    end
+
+    return one(T)
+end
+
+
+
+function build_distances(coord::Vector,
+                         bathymetry::GeoArrays.GeoArray, h)
+
+    ny, nx = size(bathymetry)[1:2]
+    dist_acoustic = zeros(Float32, ny, nx, length(coord))
+
+    for k in 1:length(coord)
+        idx = GeoArrays.indices(bathymetry, coord[k])
+        dist_acoustic[:,:,k] .= [sqrt((i-idx[1])^2 + (j-idx[2])^2) * h
+                                 for i in 1:ny, j in 1:nx]
+    end
+
+    dist_acoustic
+end
+
+# ---
+# run filter
+
+function run_filter!(pos, H,
+                     bathymetry, depth_obs,
+                     acoustic_obs, dist_acoustic;
+                     steps_per_t=1,
+                     tsave=1:100,
+                     p_init)
+
+    tmax = maximum(tsave)
+
+    nx, ny = size(pos)[1:2]
+    pos_tmp = similar(pos, nx, ny, 1, 1)
+    pos_tmp[:,:,1,1] = p_init ./ sum(p_init)
+
+    i = 1
+    for t in 1:tmax
+
+        # --- solve focker plank
+        for k in 1:steps_per_t
+            CUDA.@allowscalar begin
+                pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
+            end
+        end
+
+        # --- add depth signal
+        pos_tmp[:,:,1,1] .*= p_depth.(depth_obs[t], bathymetry)
+
+        # --- add accustic signal
+        n_sensors = size(dist_acoustic, 3)
+        for s in 1:n_sensors
+            pos_tmp[:,:,1,1] .*= p_acoustic.(acoustic_obs[s, t], dist_acoustic[:,:,s])
+        end
+
+        # --- normalize
+        Z = sum(pos_tmp[:,:,1,1])
+        isfinite(Z) ||
+            error("No solution at time point $(t)!")
+        pos_tmp[:,:,1,1] .= pos_tmp[:,:,1,1] ./ Z
+
+        # --- save results
+        if t in tsave
+            pos[:,:,1,i] = pos_tmp[:,:,1,1]
+            i += 1
+        end
+    end
+
+end
+
+
+"""
+Performs forward filtering using a diffusion model
+
+# Arguments
+
+- `p_init::Matrix`: Initial probability distribution of the fish positions
+- `bathymetry`: Bathymetric data of the environment
+- `depth_obs`: A vector of observed depths at each time step
+- `acoustic_obs`: A matrix of  acoustic observations
+- `acoustic_pos`: Vector of tuples containing the positions of the acoustic receivers
+- `tsave::AbstractVector`: Time steps at which to save the probability map
+- `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
+- `h`: spatial resolution [m]
+- `use_gpu`: Boolean flag to enable GPU
+
+"""
+function forward_filter(p_init, bathymetry;
+                        depth_obs,
+                        acoustic_obs, acoustic_pos,
+                        tsave::AbstractVector = 1:100,
+                        D, h=1, use_gpu=false)
+
+    @assert size(p_init) == size(bathymetry)[1:2]
+    @assert size(acoustic_pos, 1) == length(acoustic_pos)
+    println("$(size(acoustic_pos, 1)) acoustic sensors")
+
+
+    nx, ny = size(p_init)
+
+
+    # convolution kerel
+    H, n_steps = make_kernel(D=D, h=h)
+
+    println("$((maximum(tsave)-1)*n_steps) convolutions")
+
+    # distances to acoustic sensors
+    dist_acoustic = build_distances(acoustic_pos, bathymetry, h)
+
+    # run filter
+    if use_gpu
+        H = CuArray(H)
+        bathymetry = CuArray(bathymetry[:,:,1])
+        dist_acoustic = CuArray(dist_acoustic)
+
+        memory_demand = round(nx * ny * length(tsave) * 4 / 1024^2, digits=0) # in Mega bytes
+        memory_free = round(CUDA.free_memory() / 1024^2, digits=0)
+        println("Computation requires at least $memory_demand Mb of GPU memmory ($memory_free Mb free)")
+
+        pos = CuArray{Float32}(undef, (nx, ny, 1, length(tsave)))
+    else
+        pos = similar(p_init, nx, ny, 1, length(tsave))
+        bathymetry = bathymetry[:,:,1]
+    end
+
+    run_filter!(pos, H, bathymetry, depth_obs,
+                acoustic_obs, dist_acoustic;
+                steps_per_t=n_steps, tsave=tsave, p_init)
+
+    return (pos=pos, tsave=tsave)
+end
+
 
 end
