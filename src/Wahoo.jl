@@ -99,9 +99,10 @@ function run_filter!(pos, H,
 
     tmax = maximum(tsave)
 
+    p_init ./= sum(p_init)
     nx, ny = size(pos)[1:2]
     pos_tmp = similar(pos, nx, ny, 1, 1)
-    pos_tmp[:,:,1,1] .= p_init ./ sum(p_init)
+    pos_tmp[:,:,1,1] = p_init
     pos[:,:,1,1] .= pos_tmp[:,:,1,1]
 
     for t in 2:tmax
@@ -168,7 +169,7 @@ function run_smoother(pos_filter, H,
 
     # hold smoothed results, P(s_t | y_{1:T})
     pos_smoother = similar(pos_filter)
-    pos_smoother_tmp = copy(similar(pos_filter, nx, ny, 1:1))
+    pos_smoother_tmp = similar(pos_filter, nx, ny, 1)
 
     pos_smoother_tmp[:,:,1] .= pos_smoother[:,:,1,end] .= pos_filter[:,:,1,end]
 
