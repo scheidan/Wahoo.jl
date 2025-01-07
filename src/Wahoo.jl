@@ -2,12 +2,8 @@ module Wahoo
 
 export track
 
-using CUDA
 import NNlib
-import cuDNN
-
 import GeoArrays
-
 
 """
 Compute convolution kernel and the number of time steps
@@ -97,6 +93,8 @@ function run_filter!(pos, H,
                      tsave=1:100,
                      p_init)
 
+    ext = Base.get_extension(@__MODULE__, :CUDAExt)
+
     tmax = maximum(tsave)
 
     p_init ./= sum(p_init)
@@ -109,9 +107,12 @@ function run_filter!(pos, H,
 
         # --- solve focker plank
         for k in 1:hops_per_step
-            #CUDA.@allowscalar begin
+            if !isnothing(ext) # check if we have CUDA.jl loaded
+                pos_tmp[:,:,1,1] = ext.conv(pos_tmp[:,:,1:1,1:1], H)
+            else
                 pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
-            #end
+            end
+
         end
 
         # --- add depth signal
@@ -161,6 +162,7 @@ function run_smoother(pos_filter, H,
                       hops_per_step,
                       tsave=1:100)
 
+    ext = Base.get_extension(@__MODULE__, :CUDAExt)
 
     tmax = maximum(tsave)
     n_tsave = length(tsave)
@@ -194,9 +196,12 @@ function run_smoother(pos_filter, H,
 
             # --- solve focker plank
             for k in 1:hops_per_step
-                CUDA.@allowscalar begin
+                 if !isnothing(ext) # check if we have CUDA.jl loaded
+                      pos_filter_jump[:,:,1,(i+1):(i+1)] = ext.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H)
+                 else
                     pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
                 end
+
             end
 
             # --- save P(s_{t+1} | y_{1:t})
@@ -234,9 +239,11 @@ function run_smoother(pos_filter, H,
             # --- solve focker plank backwards
             # K = rot180(H) = H if no advections
             for k in 1:hops_per_step
-                CUDA.@allowscalar begin
-                    pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
-                end
+                 if !isnothing(ext) # check if we have CUDA.jl loaded
+                     pos_smoother_tmp[:,:,1,1] = ext.conv(pos_smoother_tmp[:,:,1:1,1:1], H)
+                 else
+                     pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
+                 end
             end
 
             pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1]
@@ -278,7 +285,6 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 - `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
 - `h`: spatial resolution [m]
 - `smoothing`: Boolean flag to enable smoothing
-- `use_gpu`: Boolean flag to enable GPU
 
 """
 function track(p_init, bathymetry;
@@ -286,8 +292,7 @@ function track(p_init, bathymetry;
                acoustic_obs, acoustic_pos,
                tsave::AbstractVector = 1:100,
                D, h=1,
-               smoothing::Bool=false,
-               use_gpu::Bool=false)
+               smoothing::Bool=false)
 
     @assert size(p_init) == size(bathymetry)[1:2]
     @assert size(acoustic_pos, 1) == length(acoustic_pos)
@@ -304,30 +309,24 @@ function track(p_init, bathymetry;
     dist_acoustic = build_distances(acoustic_pos, bathymetry, h)
 
     # run filter
-    if use_gpu
-        H = CuArray(H)
-        bathymetry = CuArray(bathymetry[:,:,1])
-        dist_acoustic = CuArray(dist_acoustic)
 
-        memory_demand = round(nx * ny * length(tsave) * 4 / 1024^2, digits=0) # in Mega bytes
-        memory_free = round(CUDA.free_memory() / 1024^2, digits=0)
-        println("Filter computation requires at least $memory_demand Mb of GPU memmory ($memory_free Mb free)")
-
-        pos = CuArray{Float32}(undef, (nx, ny, 1, length(tsave)))
+    ext = Base.get_extension(@__MODULE__, :CUDAExt)
+    if !isnothing(ext) # check if we have CUDA.jl loaded
+        H, bathymetry, dist_acoustic, pos = ext.move_to_GPU(H, bathymetry, dist_acoustic, tsave)
     else
         pos = similar(p_init, nx, ny, 1, length(tsave))
         bathymetry = bathymetry[:,:,1]
     end
 
-    println("--- Run filter ---")
-    println(" Requires $((maximum(tsave)-1)*n_hops) convolutions")
+    @info "--- Run filter ---"
+    @info " Requires $((maximum(tsave)-1)*n_hops) convolutions"
 
     run_filter!(pos, H, bathymetry, depth_obs,
                 acoustic_obs, dist_acoustic;
                 hops_per_step = n_hops, tsave = tsave, p_init)
 
     if smoothing
-        println("--- Run smoothing ---")
+        @info "--- Run smoother ---"
 
         pos_smoother, tsave = run_smoother(pos, H,
                                            bathymetry, depth_obs,
@@ -336,10 +335,18 @@ function track(p_init, bathymetry;
                                            hops_per_step = n_hops,
                                            tsave = tsave)
 
-        return (pos_smoother = pos_smoother, pos_filter = pos, tsave = tsave)
+        if !isnothing(ext) # check if we have CUDA.jl loaded
+            return (pos_smoother = Array(pos_smoother), pos_filter = Array(pos), tsave = tsave)
+        else
+            return (pos_smoother = pos_smoother, pos_filter = pos, tsave = tsave)
+        end
 
     else
-        return (pos_filter = pos, tsave = tsave)
+        if !isnothing(ext) # check if we have CUDA.jl loaded
+            return  (pos_filter = Array(pos), tsave = tsave)
+        else
+            return (pos_filter = pos, tsave = tsave)
+        end
     end
 
 end
