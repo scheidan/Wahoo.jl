@@ -6,7 +6,7 @@ import NNlib
 import GeoArrays
 
 """
-Compute convolution kernel and the number of time steps
+Compute convolution kernel and the required number of hope per time steps
 
 D: diffusion coefficient
 h: spatial resolution
@@ -15,7 +15,7 @@ function make_kernel(;D, h)
 
     # compute 1/Δ, so that 4*D*Δ/h^2 < 1
     n_hops = ceil(Int, 4*D/(h^2*0.99))
-    Δ = 1f0/n_hops
+    Δ = 1/n_hops
     @assert 4*D*Δ/h^2 < 1
 
     # convolution kernel
@@ -23,9 +23,9 @@ function make_kernel(;D, h)
                 0 1 0;
                 0 0 0]
 
-    H = H + Float32(D*Δ/h^2) .* Float32[0  1  0;
-                                        1 -4  1;
-                                        0  1  0]
+    H = H + D*Δ/h^2 .* [0  1  0;
+                        1 -4  1;
+                        0  1  0]
     H = reshape(H, 3, 3, 1, 1)
 
     H, n_hops
@@ -299,7 +299,7 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
         H, bathymetry, dist_acoustic, pos = cudaext.move_to_GPU(H, bathymetry, dist_acoustic, tsave)
     else                   # use CPU
         pos = similar(p_init, nx, ny, 1, length(tsave))
-        bathymetry = bathymetry[:,:,1]
+        bathymetry = Float64.(bathymetry[:,:,1])
     end
 
     @info "--- Run filter ---"
