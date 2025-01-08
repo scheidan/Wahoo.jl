@@ -18,7 +18,7 @@ CUDAExt = ["CUDA", "cuDNN"]
 GeoArrays = "0.9"
 NNlib = "0.9.26"
 DelimitedFiles = "1.9"
-Logging = "1.11"
+Logging = "1"
 julia = "1.9"
 
 [extras]
