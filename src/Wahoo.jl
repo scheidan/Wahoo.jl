@@ -35,17 +35,17 @@ end
 # ---
 # depth likelihood
 
-function p_depth(dobs, dmax)
-    if dobs > dmax
-        return zero(dobs)
+function p_depth(obs, dmax)
+    if obs > dmax
+        return zero(obs)
     else
         # # uniform depth
-        # one(dobs)/dmax
+        # one(obs)/dmax
 
         # exponential
         scale = 30f0
         Z = 1 - exp(-dmax/scale) # normalisation due to truncation
-        exp(-(dmax - dobs)/scale)/(scale * Z)
+        exp(-(dmax - obs)/scale)/(scale * Z)
     end
 end
 
@@ -319,7 +319,7 @@ function track(p_init, bathymetry;
                                            hops_per_step = n_hops,
                                            tsave = tsave)
 
-        
+
         return (pos_smoother = Array(pos_smoother), pos_filter = Array(pos), tsave = tsave)
     else
         return  (pos_filter = Array(pos), tsave = tsave)
