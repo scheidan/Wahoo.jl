@@ -271,9 +271,9 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 - `smoothing`: Boolean flag to enable smoothing
 
 """
-function track(p_init, bathymetry;
-               depth_obs,
-               acoustic_obs, acoustic_pos,
+function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
+               depth_obs::Vector,
+               acoustic_obs::Matrix{Int}, acoustic_pos::Vector,
                tsave::AbstractVector = 1:100,
                D, h=1,
                smoothing::Bool=false)
