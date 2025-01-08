@@ -93,8 +93,6 @@ function run_filter!(pos, H,
                      tsave=1:100,
                      p_init)
 
-    ext = Base.get_extension(@__MODULE__, :CUDAExt)
-
     tmax = maximum(tsave)
 
     p_init ./= sum(p_init)
@@ -107,12 +105,7 @@ function run_filter!(pos, H,
 
         # --- solve focker plank
         for k in 1:hops_per_step
-            if !isnothing(ext) # check if we have CUDA.jl loaded
-                pos_tmp[:,:,1,1] = ext.conv(pos_tmp[:,:,1:1,1:1], H)
-            else
-                pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
-            end
-
+            pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
         end
 
         # --- add depth signal
@@ -196,12 +189,7 @@ function run_smoother(pos_filter, H,
 
             # --- solve focker plank
             for k in 1:hops_per_step
-                 if !isnothing(ext) # check if we have CUDA.jl loaded
-                      pos_filter_jump[:,:,1,(i+1):(i+1)] = ext.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H)
-                 else
-                    pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
-                end
-
+                pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
             end
 
             # --- save P(s_{t+1} | y_{1:t})
@@ -239,11 +227,7 @@ function run_smoother(pos_filter, H,
             # --- solve focker plank backwards
             # K = rot180(H) = H if no advections
             for k in 1:hops_per_step
-                 if !isnothing(ext) # check if we have CUDA.jl loaded
-                     pos_smoother_tmp[:,:,1,1] = ext.conv(pos_smoother_tmp[:,:,1:1,1:1], H)
-                 else
-                     pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
-                 end
+                 pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
             end
 
             pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1]
@@ -310,10 +294,10 @@ function track(p_init, bathymetry;
 
     # run filter
 
-    ext = Base.get_extension(@__MODULE__, :CUDAExt)
-    if !isnothing(ext) # check if we have CUDA.jl loaded
-        H, bathymetry, dist_acoustic, pos = ext.move_to_GPU(H, bathymetry, dist_acoustic, tsave)
-    else
+    cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
+    if !isnothing(cudaext) # check if we have CUDA.jl loaded
+        H, bathymetry, dist_acoustic, pos = cudaext.move_to_GPU(H, bathymetry, dist_acoustic, tsave)
+    else                   # use CPU
         pos = similar(p_init, nx, ny, 1, length(tsave))
         bathymetry = bathymetry[:,:,1]
     end
@@ -335,18 +319,10 @@ function track(p_init, bathymetry;
                                            hops_per_step = n_hops,
                                            tsave = tsave)
 
-        if !isnothing(ext) # check if we have CUDA.jl loaded
-            return (pos_smoother = Array(pos_smoother), pos_filter = Array(pos), tsave = tsave)
-        else
-            return (pos_smoother = pos_smoother, pos_filter = pos, tsave = tsave)
-        end
-
+        
+        return (pos_smoother = Array(pos_smoother), pos_filter = Array(pos), tsave = tsave)
     else
-        if !isnothing(ext) # check if we have CUDA.jl loaded
-            return  (pos_filter = Array(pos), tsave = tsave)
-        else
-            return (pos_filter = pos, tsave = tsave)
-        end
+        return  (pos_filter = Array(pos), tsave = tsave)
     end
 
 end

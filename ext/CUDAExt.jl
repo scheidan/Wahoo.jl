@@ -1,6 +1,5 @@
 ## -------------------------------------------------------
-## Andreas Scheidegger
-## andreas.scheidegger@eawag.ch
+## This module is only loaded if CUDA.jl and cuDNN.jl are loaded
 ## -------------------------------------------------------
 
 
@@ -25,13 +24,6 @@ function move_to_GPU(H, bathymetry, dist_acoustic, tsave)
     @info "Filter computation requires at least $memory_demand Mb of GPU memmory ($memory_free Mb free)"
 
     return H, bathymetry, dist_acoustic, pos
-end
-
-
-function conv(pos, H)
-    CUDA.@allowscalar begin
-         NNlib.conv(pos, H, pad=1)
-    end
 end
 
 end
