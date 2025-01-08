@@ -71,7 +71,7 @@ D = 200^2                   # Diffusion coefficient, i.e. variance of one time s
 
 
 # -----------
-# 3) Define parameters
+# 3) Run inference
 # -----------
 
 res = track(p0, bathymetry_map; tsave = tsave,
