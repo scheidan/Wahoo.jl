@@ -11,3 +11,5 @@
 
 ## Usage
 TODO
+
+To use GPU for compuations, the packages `CUDA.jl` _and_ `cuDNN.jl` must be imported.
