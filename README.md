@@ -1,4 +1,4 @@
-# Wahoo
+# Wahoo.jl
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://scheidan.github.io/Wahoo.jl/stable/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://scheidan.github.io/Wahoo.jl/dev/)
@@ -87,7 +87,15 @@ res.pos_smoother     # Prob(s_t | y_{1...T})
 res.tsave            # time points
 ```
 
-To use GPU for compuations, the packages `CUDA.jl` _and_ `cuDNN.jl` must be imported.
+The inferred probabilities using smoothing:
+
+![animated probabilities](docs/assets/smoothing_animated.gif)
+
+
+### GPU usage
+
+To use GPU for computations, the packages `CUDA.jl` _and_ `cuDNN.jl`
+must be imported. Currently only CUDA compatibles GPUs are supported.
 
 
 ## References
