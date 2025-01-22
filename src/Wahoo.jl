@@ -222,7 +222,7 @@ function run_smoother(pos_filter, H,
             idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
 
             # treat division by zero as special case
-            pos_smoother_tmp[:,:,1,1] .= divzero.(pos_smoother_tmp[:,:,1,1], pos_filter_jump[:,:,1,idx])
+            pos_smoother_tmp[:,:,1,1] .= divzero.(pos_smoother_tmp[:,:,1,1], pos_filter_jump_moved[:,:,1,idx])
 
             # --- solve focker plank backwards
             # K = rot180(H) = H if no advections
