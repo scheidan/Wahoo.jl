@@ -3,6 +3,7 @@ export track
 
 import NNlib
 import GeoArrays
+import ProgressMeter
 
 """
 Compute convolution kernel and the required number of hope per time steps
@@ -46,7 +47,8 @@ function run_filter!(pos, H,
                      acoustic_obs, dist_acoustic;
                      hops_per_step,
                      tsave=1:100,
-                     p_init)
+                     p_init,
+                     show_progressbar)
 
     tmax = maximum(tsave)
 
@@ -55,6 +57,9 @@ function run_filter!(pos, H,
     pos_tmp = similar(pos, nx, ny, 1, 1)
     pos_tmp[:,:,1,1] = p_init
     pos[:,:,1,1] .= pos_tmp[:,:,1,1]
+
+    pmeter = ProgressMeter.Progress(tmax - 1; desc = "Filtering...:",
+                                    output = stderr, enabled = show_progressbar)
 
     for t in 2:tmax
 
@@ -83,6 +88,8 @@ function run_filter!(pos, H,
         if t in tsave
             pos[:,:,1,time2index(t, tsave)] = pos_tmp[:,:,1,1]
         end
+
+        ProgressMeter.next!(pmeter)
     end
 
 end
@@ -102,7 +109,8 @@ function run_smoother(pos_filter, H,
                       bathymetry, depth_obs,
                       acoustic_obs, dist_acoustic;
                       hops_per_step,
-                      tsave=1:100)
+                      tsave=1:100,
+                      show_progressbar)
 
     ext = Base.get_extension(@__MODULE__, :CUDAExt)
 
@@ -120,6 +128,9 @@ function run_smoother(pos_filter, H,
     # distribution of resdence time over all time steps
     residence_dist = similar(pos_filter, nx, ny)
     residence_dist[:,:] .= pos_filter[:,:,1,end]
+
+    pmeter = ProgressMeter.Progress(n_tsave - 1; desc = "Smoothing...:",
+                                    output = stderr, enabled = show_progressbar)
 
     # jth jump back in time
     for j in (n_tsave-1):-1:1
@@ -196,6 +207,8 @@ function run_smoother(pos_filter, H,
 
         end
 
+        ProgressMeter.next!(pmeter)
+
     end
 
     # normalize
@@ -226,6 +239,7 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 - `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
 - `h`: spatial resolution [m]
 - `smoothing`: Boolean flag to enable smoothing
+- `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
 
 """
 function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
@@ -233,7 +247,8 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
                acoustic_obs::Matrix{Int}, acoustic_pos::Vector,
                tsave::AbstractVector = 1:100,
                D, h=1,
-               smoothing::Bool=false)
+               smoothing::Bool=false,
+               show_progressbar::Bool = !is_logging(stderr))
 
     @assert size(p_init) == size(bathymetry)[1:2]
     @assert size(acoustic_obs, 1) == length(acoustic_pos)
@@ -264,7 +279,8 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
 
     run_filter!(pos, H, bathymetry, depth_obs,
                 acoustic_obs, dist_acoustic;
-                hops_per_step = n_hops, tsave = tsave, p_init)
+                hops_per_step = n_hops, tsave = tsave, p_init,
+                show_progressbar = show_progressbar)
 
     if smoothing
         @info "--- Run smoother ---"
@@ -274,7 +290,8 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
                                                            acoustic_obs,
                                                            dist_acoustic;
                                                            hops_per_step = n_hops,
-                                                           tsave = tsave)
+                                                           tsave = tsave,
+                                                           show_progressbar = show_progressbar)
 
         return (pos_smoother = Array(pos_smoother),
                 pos_filter = Array(pos),
@@ -285,3 +302,7 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
     end
 
 end
+
+# Little helper:
+# Check if a stream is logged. From: https://github.com/timholy/ProgressMeter.jl
+is_logging(io) = isa(io, Base.TTY) == false || (get(ENV, "CI", nothing) == "true")

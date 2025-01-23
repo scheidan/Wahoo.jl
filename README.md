@@ -84,6 +84,7 @@ res = track(p0, bathymetry_map; tsave = tsave,
 # Array{Float32, 4}: Ny × Nx × 1 × time
 res.pos_filter       # Prob(s_t | y_{1...t})
 res.pos_smoother     # Prob(s_t | y_{1...T})
+res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
 res.tsave            # time points
 ```
 

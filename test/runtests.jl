@@ -39,7 +39,8 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
                     D = D, h = h,
                     depth_obs = depth_obs,
                     acoustic_obs = acoustic_obs, acoustic_pos = acoustic_pos,
-                    smoothing = true)
+                    smoothing = true,
+                    show_progressbar = false)
 
         # check dimensions
         @test res.tsave == tsave
