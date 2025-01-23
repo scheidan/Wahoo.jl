@@ -48,6 +48,7 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         @test size(res.pos_filter)[1:2] == size(bathymetry_map)
 
         # check normalization
+        @test sum(res.residence_dist) ≈ 1
         for j in 1:size(res.pos_filter,4)
             @test sum(res.pos_filter[:,:,:,j]) ≈ 1
             @test sum(res.pos_smoother[:,:,:,j]) ≈ 1

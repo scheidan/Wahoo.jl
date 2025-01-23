@@ -117,6 +117,10 @@ function run_smoother(pos_filter, H,
 
     pos_smoother_tmp[:,:,1] .= pos_smoother[:,:,1,end] .= pos_filter[:,:,1,end]
 
+    # distribution of resdence time over all time steps
+    residence_dist = similar(pos_filter, nx, ny)
+    residence_dist[:,:] .= pos_filter[:,:,1,end]
+
     # jth jump back in time
     for j in (n_tsave-1):-1:1
 
@@ -167,6 +171,7 @@ function run_smoother(pos_filter, H,
 
         pos_smoother_tmp[:,:,1,1] .= pos_smoother[:,:,1,time2index(tsave_jump[end], tsave)]
 
+
         for (i, t) in enumerate(reverse(tsave_jump)[2:end])
             idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
 
@@ -180,9 +185,9 @@ function run_smoother(pos_filter, H,
             end
 
             pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1]
-
-            # !!! CHECK why is this normalisation needed / allowed? !!!
             pos_smoother_tmp[:,:,1,1] ./= sum(pos_smoother_tmp[:,:,1,1])
+
+            residence_dist .+= pos_filter[:,:,1,1]
 
             # --- save
             if t in tsave
@@ -193,7 +198,10 @@ function run_smoother(pos_filter, H,
 
     end
 
-    pos_smoother, tsave
+    # normalize
+    residence_dist ./= sum(residence_dist)
+
+    pos_smoother, residence_dist, tsave
 end
 
 
@@ -228,7 +236,7 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
                smoothing::Bool=false)
 
     @assert size(p_init) == size(bathymetry)[1:2]
-    @assert size(acoustic_pos, 1) == length(acoustic_pos)
+    @assert size(acoustic_obs, 1) == length(acoustic_pos)
     println("$(size(acoustic_pos, 1)) acoustic sensors")
 
 
@@ -261,15 +269,17 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
     if smoothing
         @info "--- Run smoother ---"
 
-        pos_smoother, tsave = run_smoother(pos, H,
-                                           bathymetry, depth_obs,
-                                           acoustic_obs,
-                                           dist_acoustic;
-                                           hops_per_step = n_hops,
-                                           tsave = tsave)
+        pos_smoother, residence_dist, tsave = run_smoother(pos, H,
+                                                           bathymetry, depth_obs,
+                                                           acoustic_obs,
+                                                           dist_acoustic;
+                                                           hops_per_step = n_hops,
+                                                           tsave = tsave)
 
-
-        return (pos_smoother = Array(pos_smoother), pos_filter = Array(pos), tsave = tsave)
+        return (pos_smoother = Array(pos_smoother),
+                pos_filter = Array(pos),
+                residence_dist = Array(residence_dist),
+                tsave = tsave)
     else
         return  (pos_filter = Array(pos), tsave = tsave)
     end
