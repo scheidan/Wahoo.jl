@@ -252,8 +252,6 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
 
     @assert size(p_init) == size(bathymetry)[1:2]
     @assert size(acoustic_obs, 1) == length(acoustic_pos)
-    println("$(size(acoustic_pos, 1)) acoustic sensors")
-
 
     nx, ny = size(p_init)
 
@@ -274,16 +272,12 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
         bathymetry = Float64.(bathymetry[:,:,1])
     end
 
-    @info "--- Run filter ---"
-    @info " Requires $((maximum(tsave)-1)*n_hops) convolutions"
-
     run_filter!(pos, H, bathymetry, depth_obs,
                 acoustic_obs, dist_acoustic;
                 hops_per_step = n_hops, tsave = tsave, p_init,
                 show_progressbar = show_progressbar)
 
     if smoothing
-        @info "--- Run smoother ---"
 
         pos_smoother, residence_dist, tsave = run_smoother(pos, H,
                                                            bathymetry, depth_obs,
