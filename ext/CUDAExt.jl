@@ -16,10 +16,10 @@ function move_to_GPU(H, bathymetry, dist_acoustic, tsave)
     H = CuArray{Float32}(H)
     bathymetry = CuArray{Float32}(bathymetry[:,:,1])
     dist_acoustic = CuArray{Float32}(dist_acoustic)
-    pos = CuArray{Float32}(undef, (nx, ny, 1, length(tsave)))
+
 
     @info "Using GPU: $(CUDA.current_device())"
-    return H, bathymetry, dist_acoustic, pos
+    return H, bathymetry, dist_acoustic
 end
 
 end

@@ -42,20 +42,22 @@ time2index(t, tsave) = findfirst(==(t), tsave)
 # ---
 # filter algorithm
 
-function run_filter!(pos, H,
-                     bathymetry, depth_obs,
-                     acoustic_obs, dist_acoustic;
-                     hops_per_step,
-                     tsave=1:100,
-                     p_init,
-                     show_progressbar)
+function run_filter(pos_init, H,
+                    bathymetry, depth_obs,
+                    acoustic_obs, dist_acoustic;
+                    hops_per_step,
+                    tsave=1:100,
+                    show_progressbar)
 
     tmax = maximum(tsave)
 
-    p_init ./= sum(p_init)
-    nx, ny = size(pos)[1:2]
-    pos_tmp = similar(pos, nx, ny, 1, 1)
-    pos_tmp[:,:,1,1] = p_init
+    pos_init ./= sum(pos_init)
+    nx, ny = size(bathymetry)[1:2]
+
+    pos = similar(H, nx, ny, 1, length(tsave))
+
+    pos_tmp = similar(H, nx, ny, 1, 1)
+    pos_tmp[:,:,1,1] = pos_init
     pos[:,:,1,1] .= pos_tmp[:,:,1,1]
 
     pmeter = ProgressMeter.Progress(tmax - 1; desc = "Filtering...:",
@@ -92,6 +94,7 @@ function run_filter!(pos, H,
         ProgressMeter.next!(pmeter)
     end
 
+    return pos
 end
 
 
@@ -142,9 +145,9 @@ function run_smoother(pos_filter, H,
 
         # holds reconstructed filter results (!!! better move out of loop?)
         pos_filter_jump = similar(pos_filter, nx, ny, 1, length(tsave_jump))         # P(s_t | y_{1:t})
-        pos_filter_jump_moved = similar(pos_filter, nx, ny, 1, length(tsave_jump))   # P(s_{t+1} | y_{1:t})
+        pos_filter_jump_no_obs = similar(pos_filter, nx, ny, 1, length(tsave_jump))   # P(s_{t+1} | y_{1:t})
 
-        pos_filter_jump[:,:,1,1] .= pos_filter_jump_moved[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
+        pos_filter_jump[:,:,1,1] .= pos_filter_jump_no_obs[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
 
 
         for (i,t) in enumerate(tsave_jump[1:(end-1)])
@@ -157,7 +160,7 @@ function run_smoother(pos_filter, H,
             end
 
             # --- save P(s_{t+1} | y_{1:t})
-            pos_filter_jump_moved[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
+            pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
             # --- add depth signal
             pos_filter_jump[:,:,1,i+1] .*= p_depth.(depth_obs[t+1], bathymetry)
@@ -187,12 +190,12 @@ function run_smoother(pos_filter, H,
             idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
 
             # treat division by zero as special case
-            pos_smoother_tmp[:,:,1,1] .= divzero.(pos_smoother_tmp[:,:,1,1], pos_filter_jump_moved[:,:,1,idx])
+            pos_smoother_tmp[:,:,1,1] .= divzero.(pos_smoother_tmp[:,:,1,1], pos_filter_jump_no_obs[:,:,1,idx])
 
             # --- solve focker plank backwards
             # K = rot180(H) = H if no advections
             for k in 1:hops_per_step
-                 pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
+                pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
             end
 
             pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1]
@@ -214,7 +217,7 @@ function run_smoother(pos_filter, H,
     # normalize
     residence_dist ./= sum(residence_dist)
 
-    pos_smoother, residence_dist, tsave
+    return (pos_smoother, residence_dist)
 end
 
 
@@ -223,14 +226,14 @@ end
 Tracks the location of the fish
 
 ```
-track(p_init, bathymetry; depth_obs, acoustic_obs, acoustic_pos, tsave, D, h, smoothing, use_gpu)
+track(pos_init, bathymetry; depth_obs, acoustic_obs, acoustic_pos, tsave, D, h, smoothing, use_gpu)
 ```
 
 Uses forward filtering based on a diffusion model and optionally smoothing.
 
 # Arguments
 
-- `p_init::Matrix`: Initial probability distribution of the fish positions
+- `pos_init::Matrix`: Initial probability distribution of the fish positions
 - `bathymetry`: Bathymetric data of the environment
 - `depth_obs`: A vector of observed depths at each time step
 - `acoustic_obs`: A matrix of  acoustic observations
@@ -242,7 +245,7 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 - `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
 
 """
-function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
+function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray;
                depth_obs::Vector,
                acoustic_obs::Matrix{Int}, acoustic_pos::Vector,
                tsave::AbstractVector = 1:100,
@@ -250,10 +253,10 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
                smoothing::Bool=false,
                show_progressbar::Bool = !is_logging(stderr))
 
-    @assert size(p_init) == size(bathymetry)[1:2]
+    @assert size(pos_init) == size(bathymetry)[1:2]
     @assert size(acoustic_obs, 1) == length(acoustic_pos)
 
-    nx, ny = size(p_init)
+    nx, ny = size(pos_init)
 
 
     # convolution kerel
@@ -266,33 +269,32 @@ function track(p_init::Matrix, bathymetry::GeoArrays.GeoArray;
 
     cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
     if !isnothing(cudaext) # check if we have CUDA.jl loaded
-        H, bathymetry, dist_acoustic, pos = cudaext.move_to_GPU(H, bathymetry, dist_acoustic, tsave)
+        H, bathymetry, dist_acoustic = cudaext.move_to_GPU(H, bathymetry, dist_acoustic, tsave)
     else                   # use CPU
-        pos = similar(p_init, nx, ny, 1, length(tsave))
         bathymetry = Float64.(bathymetry[:,:,1])
     end
 
-    run_filter!(pos, H, bathymetry, depth_obs,
-                acoustic_obs, dist_acoustic;
-                hops_per_step = n_hops, tsave = tsave, p_init,
-                show_progressbar = show_progressbar)
+    pos_filter = run_filter(pos_init, H, bathymetry, depth_obs,
+                            acoustic_obs, dist_acoustic;
+                            hops_per_step = n_hops, tsave = tsave,
+                            show_progressbar = show_progressbar)
 
     if smoothing
 
-        pos_smoother, residence_dist, tsave = run_smoother(pos, H,
-                                                           bathymetry, depth_obs,
-                                                           acoustic_obs,
-                                                           dist_acoustic;
-                                                           hops_per_step = n_hops,
-                                                           tsave = tsave,
-                                                           show_progressbar = show_progressbar)
+        pos_smoother, residence_dist = run_smoother(pos_filter, H,
+                                                    bathymetry, depth_obs,
+                                                    acoustic_obs,
+                                                    dist_acoustic;
+                                                    hops_per_step = n_hops,
+                                                    tsave = tsave,
+                                                    show_progressbar = show_progressbar)
 
         return (pos_smoother = Array(pos_smoother),
-                pos_filter = Array(pos),
+                pos_filter = Array(pos_filter),
                 residence_dist = Array(residence_dist),
                 tsave = tsave)
     else
-        return  (pos_filter = Array(pos), tsave = tsave)
+        return  (pos_filter = Array(pos_filter), tsave = tsave)
     end
 
 end
