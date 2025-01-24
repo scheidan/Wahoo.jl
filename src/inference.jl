@@ -43,8 +43,8 @@ time2index(t, tsave) = findfirst(==(t), tsave)
 # filter algorithm
 
 function run_filter(pos_init, H,
-                    bathymetry, depth_obs,
-                    acoustic_obs, dist_acoustic;
+                    bathymetry,
+                    signals, distances;
                     hops_per_step,
                     tsave=1:100,
                     show_progressbar)
@@ -72,14 +72,11 @@ function run_filter(pos_init, H,
             pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
         end
 
-        # --- add depth signal
-        pos_tmp[:,:,1,1] .*= p_depth.(depth_obs[t], bathymetry)
-
-        # --- add accustic signal
-        n_sensors = size(dist_acoustic, 3)
-        for s in 1:n_sensors
-            pos_tmp[:,:,1,1] .*= p_acoustic.(acoustic_obs[s, t], dist_acoustic[:,:,s])
+        # --- add signals
+        for (k, sig) in enumerate(signals)
+            pos_tmp[:,:,1,1] .*= sig.p_obs.(sig.observations[t], bathymetry, distances[:,:,k])
         end
+
 
         # --- normalize
         Z = sum(pos_tmp[:,:,1,1])
@@ -112,8 +109,8 @@ divzero(a, b) = iszero(b) ? zero(a/b) : a/b
 
 
 function run_smoother(pos_filter, H,
-                      bathymetry, depth_obs,
-                      acoustic_obs, dist_acoustic;
+                      bathymetry,
+                      signals, distances;
                       hops_per_step,
                       tsave=1:100,
                       show_progressbar)
@@ -165,13 +162,9 @@ function run_smoother(pos_filter, H,
             # --- save P(s_{t+1} | y_{1:t})
             pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
-            # --- add depth signal
-            pos_filter_jump[:,:,1,i+1] .*= p_depth.(depth_obs[t+1], bathymetry)
-
-            # --- add accustic signal
-            n_sensors = size(dist_acoustic, 3)
-            for s in 1:n_sensors
-                pos_filter_jump[:,:,1,i+1] .*= p_acoustic.(acoustic_obs[s, t+1], dist_acoustic[:,:,s])
+            # --- add signals
+            for (k, sig) in enumerate(signals)
+                pos_filter_jump[:,:,1,1] .*= sig.p_obs.(sig.observations[t], bathymetry, distances[:,:,k])
             end
 
             # --- normalize
@@ -265,29 +258,29 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray;
     # convolution kerel
     H, n_hops = make_kernel(D=D, h=h)
 
-    # distances to acoustic sensors
-    dist_acoustic = build_distances(acoustic_pos, bathymetry, h)
+    # precompute distances to sensors
+    distances = build_distances(signals, bathymetry, h)
 
     # run filter
 
     cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
     if !isnothing(cudaext) # check if we have CUDA.jl loaded
-        H, bathymetry, dist_acoustic = cudaext.move_to_GPU(H, bathymetry, dist_acoustic, tsave)
+        H, bathymetry, dist_acoustic = cudaext.move_to_GPU(H, bathymetry, distances, tsave)
     else                   # use CPU
         bathymetry = Float64.(bathymetry[:,:,1])
     end
 
-    pos_filter, log_p = run_filter(pos_init, H, bathymetry, depth_obs,
-                            acoustic_obs, dist_acoustic;
+    pos_filter, log_p = run_filter(pos_init, H, bathymetry,
+                            signals, distances;
                             hops_per_step = n_hops, tsave = tsave,
                             show_progressbar = show_progressbar)
 
     if smoothing
 
         pos_smoother, residence_dist = run_smoother(pos_filter, H,
-                                                    bathymetry, depth_obs,
-                                                    acoustic_obs,
-                                                    dist_acoustic;
+                                                    bathymetry,
+                                                    signals,
+                                                    distances;
                                                     hops_per_step = n_hops,
                                                     tsave = tsave,
                                                     show_progressbar = show_progressbar)
