@@ -5,17 +5,17 @@ import GeoArrays
 # ---
 # depth likelihood
 
-function p_depth(obs, dmax)
-    if obs > dmax
-        return zero(obs)
+function p_depth(obs, waterdepth)
+    if obs > waterdepth         # water is too shallow
+        return zero(waterdepth)
     else
         # # uniform depth
-        # one(obs)/dmax
+        # one(obs)/waterdepth
 
         # exponential
         scale = 30f0
-        Z = 1 - exp(-dmax/scale) # normalisation due to truncation
-        exp(-(dmax - obs)/scale)/(scale * Z)
+        Z = 1 - exp(-waterdepth/scale) # normalisation due to truncation
+        exp(-(waterdepth - obs)/scale)/(scale * Z)
     end
 end
 
@@ -32,7 +32,7 @@ function p_acoustic(obs::Int, dist::T; d0 = 400f0, k = 100f0)::T where T
         return 1 - NNlib.sigmoid((dist - d0)/k)
     end
 
-    return one(T)
+    return one(T)               # sensor not active
 end
 
 

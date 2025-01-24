@@ -38,7 +38,7 @@ bathymetry_map = GeoArrays.read(joinpath(pathdata, "bathymetry_200m.tif"))
 GeoArrays.bbox(bathymetry_map)           # shows coordinates of corners
 
 
-# -- depth observationa
+# -- depth observations
 
 # Vector{Float64}
 depth_obs = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
@@ -80,11 +80,13 @@ res = track(p0, bathymetry_map; tsave = tsave,
             acoustic_obs = acoustic_obs, acoustic_pos = acoustic_pos,
             smoothing = true);
 
-# Resulting probabilities
+# -- Resulting probabilities
 # Array{Float32, 4}: Ny × Nx × 1 × time
 res.pos_filter       # Prob(s_t | y_{1...t})
 res.pos_smoother     # Prob(s_t | y_{1...T})
+# Array{Float32, 2}: Ny × Nx
 res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
+# other results
 res.tsave            # time points
 res.log_p            # log likelihood
 ```
