@@ -63,6 +63,8 @@ function run_filter(pos_init, H,
     pmeter = ProgressMeter.Progress(tmax - 1; desc = "Filtering...:",
                                     output = stderr, enabled = show_progressbar)
 
+    log_p = zero(eltype(H))
+
     for t in 2:tmax
 
         # --- solve focker plank
@@ -82,11 +84,12 @@ function run_filter(pos_init, H,
         # --- normalize
         Z = sum(pos_tmp[:,:,1,1])
         isfinite(Z) ||
-            error("No solution at time point $(t)!")
+            error("No solution at time point $(t)! Check for data incompatibilities.")
         pos_tmp[:,:,1,1] .= pos_tmp[:,:,1,1] ./ Z
 
-        # --- save results
+        log_p += log(Z)
 
+        # --- save results
         if t in tsave
             pos[:,:,1,time2index(t, tsave)] = pos_tmp[:,:,1,1]
         end
@@ -94,7 +97,7 @@ function run_filter(pos_init, H,
         ProgressMeter.next!(pmeter)
     end
 
-    return pos
+    return pos, log_p
 end
 
 
@@ -274,7 +277,7 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray;
         bathymetry = Float64.(bathymetry[:,:,1])
     end
 
-    pos_filter = run_filter(pos_init, H, bathymetry, depth_obs,
+    pos_filter, log_p = run_filter(pos_init, H, bathymetry, depth_obs,
                             acoustic_obs, dist_acoustic;
                             hops_per_step = n_hops, tsave = tsave,
                             show_progressbar = show_progressbar)
@@ -292,9 +295,10 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray;
         return (pos_smoother = Array(pos_smoother),
                 pos_filter = Array(pos_filter),
                 residence_dist = Array(residence_dist),
+                log_p = log_p,
                 tsave = tsave)
     else
-        return  (pos_filter = Array(pos_filter), tsave = tsave)
+        return  (pos_filter = Array(pos_filter), log_p = log_p, tsave = tsave)
     end
 
 end

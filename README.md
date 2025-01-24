@@ -86,6 +86,7 @@ res.pos_filter       # Prob(s_t | y_{1...t})
 res.pos_smoother     # Prob(s_t | y_{1...T})
 res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
 res.tsave            # time points
+res.log_p            # log likelihood
 ```
 
 The inferred probabilities using smoothing:
