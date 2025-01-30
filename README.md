@@ -39,25 +39,54 @@ GeoArrays.bbox(bathymetry_map)           # shows coordinates of corners
 
 
 # -- depth observations
+# -- depth observationa
 
-# Vector{Float64}
-depth_obs = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
+# define a type and overload the observationsmodel `p_obs`
+
+struct DepthObservations <: ObservationData
+    signals::Vector{Float32}
+end
+
+function Wahoo.p_obs(o::DepthObservations, t, depth::Number, dist::Number, p)
+    Wahoo.p_depth_exponential(o.signals[t], depth, dist)
+end
+
+# read signals
+depth_signals = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
+
+depth_obs = DepthObservations(depth_signals)
 
 
 # -- acoustic observations
 
-# Vector{Tuple{Float64, Float64}}
+# define a type and overload the observationsmodel `p_obs`
+struct AcousticObservations <: ObservationData
+    signals::Vector{Int}
+end
+
+function Wahoo.p_obs(o::AcousticObservations, t::Int, depth::Number, distance::Number, p)
+    Wahoo.p_acoustic_sigmoid(o.signals[t], depth, distance)
+end
+
+
+# read signals
+acoustic_signals = readdlm(joinpath(pathdata, "acoustic_observations.csv"), ',', header=true)[1][:,2:3]
+acoustic_signals = Int.(acoustic_signals')
+
+acoustic_obs = [AcousticObservations(acoustic_signals[1,:]),
+                AcousticObservations(acoustic_signals[2,:])]
+
+
+# read positions
 moorings = readdlm(joinpath(pathdata, "acoustic_moorings.csv"), ',', header=true)[1]
 acoustic_pos = tuple.(moorings[:,2], moorings[:,3])
 
-# Matrix{Int}: n_receivers x n_time steps
-acoustic_obs = readdlm(joinpath(pathdata, "acoustic_observations.csv"), ',', header=true)[1][:,2:3]
-acoustic_obs = Int.(acoustic_obs')
 
 
 # -----------
 # 2) Define parameters
 # -----------
+
 
 # initial values: Matrix{Float64}
 p0 = zeros(size(bathymetry_map)[1], size(bathymetry_map)[2])
@@ -65,30 +94,28 @@ idx = GeoArrays.indices(bathymetry_map, (709757.111649658, 6.26772603565296e6)) 
 bathymetry_map[idx]
 p0[idx] = 1
 
-tsave = 1:5:720             # time steps to save
+tsave = 1:2:720             # time steps to save
 h = 200                     # spatial resolution [m]
 D = 200^2                   # Diffusion coefficient, i.e. variance of one time step movement [m^2]
 
+p = (D = D, )               # tuple with parameters
 
 # -----------
 # 3) Run inference
 # -----------
 
-res = track(p0, bathymetry_map; tsave = tsave,
-            D = D, h = h,
-            depth_obs = depth_obs,
-            acoustic_obs = acoustic_obs, acoustic_pos = acoustic_pos,
+res = track(p0, bathymetry_map, p; tsave = tsave,
+            h = h,
+            observations = [depth_obs, acoustic_obs...],
+            sensor_positions = [nothing, acoustic_pos...],
             smoothing = true);
 
-# -- Resulting probabilities
+# Resulting probabilities
 # Array{Float32, 4}: Ny × Nx × 1 × time
 res.pos_filter       # Prob(s_t | y_{1...t})
 res.pos_smoother     # Prob(s_t | y_{1...T})
-# Array{Float32, 2}: Ny × Nx
 res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
-# other results
 res.tsave            # time points
-res.log_p            # log likelihood
 ```
 
 The inferred probabilities using smoothing:
