@@ -2,16 +2,6 @@
 import NNlib
 import GeoArrays
 
-export ObservationData
-
-abstract type ObservationData end
-
-function p_obs(observations::T, t, depth, distance, p) where T
-    error("No observation model for type `$(T)` is implemented!\n" *
-          " Define a method for:\n" *
-          "   `Wahoo.p_obs(observations::$(T), t::Int, depth::Number, distance::Number, p)`")
-end
-
 
 # -------
 

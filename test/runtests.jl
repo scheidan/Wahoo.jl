@@ -19,33 +19,26 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         bathymetry_map = GeoArrays.read(joinpath(pathdata, "bathymetry_200m.tif"))
 
         # -- depth observations
-        # define a type and overload the observationsmodel `p_obs`
-        struct DepthObservations <: ObservationData
-            signals::Vector{Float32}
-        end
 
-        function Wahoo.p_obs(o::DepthObservations, t, depth::Number, dist::Number, p)
-            Wahoo.p_depth_exponential(o.signals[t], depth, dist)
+        # likelihood function
+        function p_obs_depth(signals, t, depth::Number, dist::Number, p)
+            Wahoo.p_depth_exponential(signals[t], depth, dist)
         end
 
         depth_signals = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
-        depth_obs = DepthObservations(depth_signals)
+        depth_obs = (p_obs_depth, depth_signals)
 
         # -- acoustic observations
-        # define a type and overload the observationsmodel `p_obs`
-        struct AcousticObservations <: ObservationData
-            signals::Vector{Int}
-        end
 
-        function Wahoo.p_obs(o::AcousticObservations, t::Int, depth::Number, distance::Number, p)
-            Wahoo.p_acoustic_sigmoid(o.signals[t], depth, distance)
+        # likelihood function
+        function p_obs_acoustic(signals, t::Int, depth::Number, distance::Number, p)
+            Wahoo.p_acoustic_sigmoid(signals[t], depth, distance)
         end
 
         acoustic_signals = readdlm(joinpath(pathdata, "acoustic_observations.csv"), ',', header=true)[1][:,2:3]
         acoustic_signals = Int.(acoustic_signals')
-
-        acoustic_obs = [AcousticObservations(acoustic_signals[1,:]),
-                        AcousticObservations(acoustic_signals[2,:])]
+        acoustic_obs = [(p_obs_acoustic, acoustic_signals[1,:]),
+                        (p_obs_acoustic, acoustic_signals[2,:])]
 
         moorings = readdlm(joinpath(pathdata, "acoustic_moorings.csv"), ',', header=true)[1]
         acoustic_pos = tuple.(moorings[:,2], moorings[:,3])

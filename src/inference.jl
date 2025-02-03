@@ -74,9 +74,9 @@ function run_filter(pos_init, p, H,
 
         # --- add observations
         for (k, obs) in enumerate(observations)
-            pos_tmp[:,:,1,1] .*= p_obs.(Ref(obs), t, bathymetry, distances[:,:,k], Ref(p))
+            p_obs, signals = obs
+            pos_tmp[:,:,1,1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, distances[:,:,k], Ref(p))
         end
-
 
         # --- normalize
         Z = sum(pos_tmp[:,:,1,1])
@@ -163,9 +163,10 @@ function run_smoother(pos_filter, p, H,
             pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
             # --- add observations
-            for (k, obs) in enumerate(observations)
-                pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(obs), t, bathymetry, distances[:,:,k], Ref(p))
-            end
+           for (k, obs) in enumerate(observations)
+               p_obs, signal = obs
+               pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signal), Ref(t), bathymetry, distances[:,:,k], Ref(p))
+           end
 
             # --- normalize
             Z = sum(pos_filter_jump[:,:,1,i+1])
@@ -243,7 +244,7 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 
 """
 function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray, p;
-               observations::Vector{ObservationData},
+               observations::Vector,
                sensor_positions::Vector,
                tsave::AbstractVector = 1:100,
                h,
