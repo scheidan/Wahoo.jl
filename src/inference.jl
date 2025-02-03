@@ -198,7 +198,7 @@ function run_smoother(pos_filter, p, H,
             pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1]
             pos_smoother_tmp[:,:,1,1] ./= sum(pos_smoother_tmp[:,:,1,1])
 
-            residence_dist .+= pos_filter[:,:,1,1]
+            residence_dist .+= pos_smoother_tmp[:,:,1,1]
 
             # --- save
             if t in tsave
