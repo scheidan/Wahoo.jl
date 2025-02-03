@@ -75,7 +75,7 @@ function run_filter(pos_init, p, H,
         # --- add observations
         for (k, obs) in enumerate(observations)
             p_obs, signals = obs
-            pos_tmp[:,:,1,1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, distances[:,:,k], Ref(p))
+            pos_tmp[:,:,1,1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, distances[:,:,k])
         end
 
         # --- normalize
@@ -165,7 +165,7 @@ function run_smoother(pos_filter, p, H,
             # --- add observations
            for (k, obs) in enumerate(observations)
                p_obs, signal = obs
-               pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signal), Ref(t), bathymetry, distances[:,:,k], Ref(p))
+               pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signal), Ref(t), bathymetry, distances[:,:,k])
            end
 
             # --- normalize
@@ -266,7 +266,7 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray, p;
 
     cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
     if !isnothing(cudaext) # check if we have CUDA.jl loaded
-        H, bathymetry, observations, dist_acoustic = cudaext.move_to_GPU(H, bathymetry, observations, distances)
+        H, bathymetry, observations, distances = cudaext.move_to_GPU(H, bathymetry, observations, distances)
     else                   # use CPU
         bathymetry = Float64.(bathymetry[:,:,1])
     end

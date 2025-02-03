@@ -51,16 +51,20 @@ end
 # ---
 # acoustic likelihood
 
-function p_acoustic_sigmoid(signal::Int, waterdepth, dist; d0 = 400f0, k = 100f0)
+function p_acoustic_sigmoid(signal, waterdepth, dist)
+    d0 = 400f0
+    k = 100f0
 
-    if signal == 0
+    p = if signal == 0
         # 1/(1 + exp(-(dist - d0)/k))
-        return NNlib.sigmoid((dist - d0)/k)
-    end
-    if signal == 1
+        NNlib.sigmoid((dist - d0)/k)
+    elseif signal == 1
         # 1 - 1/(1 + exp(-(dist - d0)/k))
-        return 1 - NNlib.sigmoid((dist - d0)/k)
+        1 - NNlib.sigmoid((dist - d0)/k)
+    else  # sensor not active
+        one(eltype(dist))
     end
 
-    return one(eltype(dist))               # sensor not active
+    return p
+
 end
