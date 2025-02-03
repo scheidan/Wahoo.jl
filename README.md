@@ -41,7 +41,7 @@ GeoArrays.bbox(bathymetry_map)           # shows coordinates of corners
 # -- depth observations
 
 # likelihood function
-function p_obs_depth(signals, t, depth::Number, dist::Number, p)
+function p_obs_depth(signals, t, depth::Number, dist::Number)
     Wahoo.p_depth_exponential(signals[t], depth, dist)
 end
 
@@ -55,7 +55,7 @@ depth_obs = (p_obs_depth, depth_signals)
 # -- acoustic observations
 
 # likelihood function
-function p_obs_acoustic(signals, t::Int, depth::Number, distance::Number, p)
+function p_obs_acoustic(signals, t::Int, depth::Number, distance::Number)
     Wahoo.p_acoustic_sigmoid(signals[t], depth, distance)
 end
 
