@@ -266,7 +266,7 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray, p;
 
     cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
     if !isnothing(cudaext) # check if we have CUDA.jl loaded
-        H, bathymetry, dist_acoustic = cudaext.move_to_GPU(H, bathymetry, distances, tsave)
+        H, bathymetry, observations, dist_acoustic = cudaext.move_to_GPU(H, bathymetry, observations, distances)
     else                   # use CPU
         bathymetry = Float64.(bathymetry[:,:,1])
     end
