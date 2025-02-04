@@ -52,8 +52,8 @@ end
 # acoustic likelihood
 
 function p_acoustic_sigmoid(signal, waterdepth, dist)
-    d0 = 4000f0
-    k = 1000f0
+    d0 = 400f0
+    k = 100f0
 
 
     p = if signal == 0
