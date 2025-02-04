@@ -39,6 +39,16 @@ Maps time step to the index of `pos_filter` and `pos_smoother`
 time2index(t, tsave) = findfirst(==(t), tsave)
 
 
+"""
+Apply diffusion on probability distribution `P` with kernel `K`
+"""
+function diffusion!(P, K, n_hops)
+    for k in 1:n_hops
+        P .= NNlib.conv(P[:,:,1:1, 1:1], K, pad=1)
+    end
+end
+
+
 # ---
 # filter algorithm
 
@@ -68,9 +78,7 @@ function run_filter(pos_init, p, H,
     for t in 2:tmax
 
         # --- solve focker plank
-        for k in 1:hops_per_step
-            pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
-        end
+        diffusion!(pos_tmp, H, hops_per_step)
 
         # --- add observations
         for (k, obs) in enumerate(observations)
@@ -155,9 +163,7 @@ function run_smoother(pos_filter, p, H,
             pos_filter_jump[:,:,1,i+1] .= pos_filter_jump[:,:,1,i]
 
             # --- solve focker plank
-            for k in 1:hops_per_step
-                pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
-            end
+            diffusion!(pos_filter_jump[:,:,1,(i+1):(i+1)], H, hops_per_step)
 
             # --- save P(s_{t+1} | y_{1:t})
             pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
@@ -191,9 +197,7 @@ function run_smoother(pos_filter, p, H,
 
             # --- solve focker plank backwards
             # K = rot180(H) = H if no advections
-            for k in 1:hops_per_step
-                pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
-            end
+            diffusion!(pos_smoother_tmp[:,:,1,1], H, hops_per_step)
 
             pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1]
             pos_smoother_tmp[:,:,1,1] ./= sum(pos_smoother_tmp[:,:,1,1])
