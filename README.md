@@ -88,14 +88,13 @@ tsave = 1:2:720             # time steps to save
 h = 200                     # spatial resolution [m]
 D = 200^2                   # Diffusion coefficient, i.e. variance of one time step movement [m^2]
 
-p = (D = D, )               # tuple with parameters
 
 # -----------
 # 3) Run inference
 # -----------
 
-res = track(p0, bathymetry_map, p; tsave = tsave,
-            h = h,
+res = track(p0, bathymetry_map; tsave = tsave,
+            h = h, D = D,
             observations = [depth_obs, acoustic_obs...],
             sensor_positions = [nothing, acoustic_pos...],
             smoothing = true);

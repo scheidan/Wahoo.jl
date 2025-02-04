@@ -19,14 +19,14 @@ function make_kernel(;D, h)
     @assert 4*D*Δ/h^2 < 1
 
     # convolution kernel
-    H = Float32[0 0 0;
-                0 1 0;
-                0 0 0]
+    H = [0 0 0;
+         0 1 0;
+         0 0 0]
 
     H = H + D*Δ/h^2 .* [0  1  0;
                         1 -4  1;
                         0  1  0]
-    H = reshape(H, 3, 3, 1, 1)
+    H = Float32.(reshape(H, 3, 3, 1, 1))
 
     H, n_hops
 end
@@ -52,7 +52,7 @@ end
 # ---
 # filter algorithm
 
-function run_filter(pos_init, p, H,
+function run_filter(pos_init, H,
                     bathymetry,
                     observations, distances;
                     hops_per_step,
@@ -96,7 +96,7 @@ function run_filter(pos_init, p, H,
 
         # --- save results
         if t in tsave
-            pos[:,:,1,time2index(t, tsave)] = pos_tmp[:,:,1,1]
+            pos[:,:,1,time2index(t, tsave)] .= pos_tmp[:,:,1,1]
         end
 
         ProgressMeter.next!(pmeter)
@@ -111,12 +111,19 @@ end
 
 
 """
-Define division by zero equal to zero.
+Define division by zero as equal to zero.
 """
-divzero(a, b) = iszero(b) ? zero(a/b) : a/b
+function divzero(a, b)
+    if iszero(b)
+        zero(a/b)
+    else
+        # if b < abs(a) / typemax(a) we can get Inf
+        min(a/b, floatmax(b))
+    end
+end
 
 
-function run_smoother(pos_filter, p, H,
+function run_smoother(pos_filter, H,
                       bathymetry,
                       observations, distances;
                       hops_per_step,
@@ -151,7 +158,7 @@ function run_smoother(pos_filter, p, H,
         # -----------
         # 1) recompute all filter steps between j and j+1
 
-        # holds reconstructed filter results (!!! better move out of loop?)
+        # holds reconstructed filter results
         pos_filter_jump = similar(pos_filter, nx, ny, 1, length(tsave_jump))          # P(s_t | y_{1:t})
         pos_filter_jump_no_obs = similar(pos_filter, nx, ny, 1, length(tsave_jump))   # P(s_{t+1} | y_{1:t})
 
@@ -169,10 +176,10 @@ function run_smoother(pos_filter, p, H,
             pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
             # --- add observations
-           for (k, obs) in enumerate(observations)
-               p_obs, signal = obs
-               pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signal), Ref(t), bathymetry, distances[:,:,k])
-           end
+            for (k, obs) in enumerate(observations)
+                p_obs, signal = obs
+                pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signal), Ref(t), bathymetry, distances[:,:,k])
+            end
 
             # --- normalize
             Z = sum(pos_filter_jump[:,:,1,i+1])
@@ -190,23 +197,28 @@ function run_smoother(pos_filter, p, H,
 
 
         for (i, t) in enumerate(reverse(tsave_jump)[2:end])
+
             idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
 
             # treat division by zero as special case
             pos_smoother_tmp[:,:,1,1] .= divzero.(pos_smoother_tmp[:,:,1,1], pos_filter_jump_no_obs[:,:,1,idx])
 
-            # --- solve focker plank backwards
+
+            # --- solve Fokker Plank backwards
             # K = rot180(H) = H if no advections
             diffusion!(pos_smoother_tmp[:,:,1,1], H, hops_per_step)
 
-            pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1]
+            # N.B. we add a small value to get to smooth the distribution a tinu bit out.
+            # That seems to avoid the numerical issues.
+            # !!! NOT SURE IF THIS IS A GOOD IDEA !!!
+            pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1] .+ eps(0f0)
             pos_smoother_tmp[:,:,1,1] ./= sum(pos_smoother_tmp[:,:,1,1])
 
             residence_dist .+= pos_smoother_tmp[:,:,1,1]
 
             # --- save
             if t in tsave
-                pos_smoother[:,:,1,time2index(t, tsave)] = pos_smoother_tmp[:,:,1,1]
+                pos_smoother[:,:,1,time2index(t, tsave)] .= pos_smoother_tmp[:,:,1,1]
             end
 
         end
@@ -227,7 +239,7 @@ end
 Tracks the location of the fish
 
 ```
-track(pos_init, bathymetry; depth_obs, acoustic_obs, acoustic_pos, tsave, D, h, smoothing, use_gpu)
+track(pos_init, bathymetry; observations, tsave, h, D, smoothing, use_gpu)
 ```
 
 Uses forward filtering based on a diffusion model and optionally smoothing.
@@ -236,23 +248,21 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 
 - `pos_init::Matrix`: Initial probability distribution of the fish positions
 - `bathymetry`: Bathymetric data of the environment
-- `p::NamedTuple`: Contas all parameters. Must include:
-    + `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
-    + `...`: other parameters potentialy used in the observations models
 - `observations`: Vector of all observations
 - `sensor_positions`: Vector of tuples or `nothing` containing the positions of the receivers
 - `tsave::AbstractVector`: Time steps at which to save the probability map
 - `h`: spatial resolution [m]
+- `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
 - `smoothing`: Boolean flag to enable smoothing
 - `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
 
 """
-function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray, p;
+function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray;
                observations::Vector,
                sensor_positions::Vector,
                tsave::AbstractVector = 1:100,
-               h,
-               smoothing::Bool=false,
+               h, D,
+               smoothing::Bool=true,
                show_progressbar::Bool = !is_logging(stderr))
 
     @assert size(pos_init) == size(bathymetry)[1:2]
@@ -261,7 +271,7 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray, p;
 
 
     # convolution kerel
-    H, n_hops = make_kernel(D=p.D, h=h)
+    H, n_hops = make_kernel(D=D, h=h)
 
     # precompute distances to sensors
     distances = build_distances(sensor_positions, bathymetry, h)
@@ -272,17 +282,18 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray, p;
     if !isnothing(cudaext) # check if we have CUDA.jl loaded
         H, bathymetry, observations, distances = cudaext.move_to_GPU(H, bathymetry, observations, distances)
     else                   # use CPU
-        bathymetry = Float64.(bathymetry[:,:,1])
+        bathymetry = Float32.(bathymetry[:,:,1])
+        pos_init = Float32.(pos_init)
     end
 
-    pos_filter, log_p = run_filter(pos_init, p, H, bathymetry,
+    pos_filter, log_p = run_filter(pos_init, H, bathymetry,
                             observations, distances;
                             hops_per_step = n_hops, tsave = tsave,
                             show_progressbar = show_progressbar)
 
     if smoothing
 
-        pos_smoother, residence_dist = run_smoother(pos_filter, p, H,
+        pos_smoother, residence_dist = run_smoother(pos_filter, H,
                                                     bathymetry,
                                                     observations,
                                                     distances;

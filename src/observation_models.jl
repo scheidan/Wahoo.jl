@@ -37,7 +37,7 @@ function p_depth_uniform(signal, waterdepth, dist)
 end
 
 
-function p_depth_exponential(signal, waterdepth, dist; scale=30f0)
+function p_depth_exponential(signal, waterdepth, dist)
     if signal > waterdepth         # water is too shallow
         return zero(waterdepth)
     else
@@ -52,8 +52,9 @@ end
 # acoustic likelihood
 
 function p_acoustic_sigmoid(signal, waterdepth, dist)
-    d0 = 400f0
-    k = 100f0
+    d0 = 4000f0
+    k = 1000f0
+
 
     p = if signal == 0
         # 1/(1 + exp(-(dist - d0)/k))

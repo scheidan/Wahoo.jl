@@ -9,6 +9,23 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
 
 @testset "Wahoo.jl" verbose = true begin
+    @testset "divzero" begin
+
+        eps1 = eps(0f0)         # smallest nonzero number
+
+        @test Wahoo.divzero(4f0, 3f0) == 4f0 / 3f0
+        @test Wahoo.divzero(4f0, 0f0) == zero(Float32)
+        @test Wahoo.divzero(0f0, 3f0) == zero(Float32)
+        @test Wahoo.divzero(0f0, 0f0) == zero(Float32)
+
+        @test Wahoo.divzero(eps1, 3f0) == zero(Float32)
+        @test Wahoo.divzero(eps1, 0f0) == zero(Float32)
+
+        @test isfinite(Wahoo.divzero(4f0, eps1)) # must not be inf32
+        @test Wahoo.divzero(0f0, eps1) == zero(Float32)
+        @test Wahoo.divzero(eps1, eps1) == one(Float32)
+
+    end
 
     @testset "Integration tests CPU" begin
 
@@ -52,12 +69,13 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
         h = 200                     # spatial resolution [m]
 
-        tsave = 105:5:200           # time steps to save
-        p = (D = 200^2, )           # tuple with parameters. Diffusion coefficient, i.e. variance of one time step movement [m^2]
+        #tsave = 105:5:200           # time steps to save
+        tsave = 1:5:720           # time steps to save
+        D = 200^2                   # Diffusion coefficient, i.e. variance of one time step movement [m^2]
 
         # run tracker
-        res = track(p0, bathymetry_map, p; tsave = tsave,
-                    h = h,
+        res = track(p0, bathymetry_map; tsave = tsave,
+                    h = h, D = D,
                     observations = [depth_obs, acoustic_obs...],
                     sensor_positions = [nothing, acoustic_pos...],
                     smoothing = true);
@@ -68,7 +86,11 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         @test size(res.pos_filter, 4) == length(tsave)
         @test size(res.pos_filter)[1:2] == size(bathymetry_map)
 
+        @test all(isfinite.(res.pos_filter))
+        @test all(isfinite.(res.pos_smoother))
+
         # check normalization
+        @test all(isfinite.(res.residence_dist))
         @test sum(res.residence_dist) ≈ 1
         for j in 1:size(res.pos_filter,4)
             @test sum(res.pos_filter[:,:,:,j]) ≈ 1
