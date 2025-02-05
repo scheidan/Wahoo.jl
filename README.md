@@ -40,32 +40,47 @@ GeoArrays.bbox(bathymetry_map)           # shows coordinates of corners
 
 # -- depth observations
 
-# Vector{Float64}
-depth_obs = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
+# define likelihood function
+function p_obs_depth(signals, t, depth::Number, dist::Number)
+	# We are lazy and using a predefined function here.
+    Wahoo.p_depth_exponential(signals[t], depth, dist)
+end
+
+# read signals
+depth_signals = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
 
 
 # -- acoustic observations
 
-# Vector{Tuple{Float64, Float64}}
+# define likelihood function
+function p_obs_acoustic(signals, t::Int, depth::Number, distance::Number)
+    Wahoo.p_acoustic_sigmoid(signals[t], depth, distance)
+end
+
+# read signals
+acoustic_signals = readdlm(joinpath(pathdata, "acoustic_observations.csv"), ',', header=true)[1][:,2:3]
+acoustic_signals = Int.(acoustic_signals')
+
+# vector of vectors:
+acoustic_obs = [acoustic_signals[1,:], acoustic_signals[2,:]]
+acoustic_obs_models = [p_obs_acoustic, p_obs_acoustic]
+
+# read positions
 moorings = readdlm(joinpath(pathdata, "acoustic_moorings.csv"), ',', header=true)[1]
 acoustic_pos = tuple.(moorings[:,2], moorings[:,3])
-
-# Matrix{Int}: n_receivers x n_time steps
-acoustic_obs = readdlm(joinpath(pathdata, "acoustic_observations.csv"), ',', header=true)[1][:,2:3]
-acoustic_obs = Int.(acoustic_obs')
 
 
 # -----------
 # 2) Define parameters
 # -----------
 
+
 # initial values: Matrix{Float64}
 p0 = zeros(size(bathymetry_map)[1], size(bathymetry_map)[2])
 idx = GeoArrays.indices(bathymetry_map, (709757.111649658, 6.26772603565296e6)) # last known location of the fish
-bathymetry_map[idx]
 p0[idx] = 1
 
-tsave = 1:5:720             # time steps to save
+tsave = 1:2:720             # time steps to save
 h = 200                     # spatial resolution [m]
 D = 200^2                   # Diffusion coefficient, i.e. variance of one time step movement [m^2]
 
@@ -74,26 +89,41 @@ D = 200^2                   # Diffusion coefficient, i.e. variance of one time s
 # 3) Run inference
 # -----------
 
-res = track(p0, bathymetry_map; tsave = tsave,
-            D = D, h = h,
-            depth_obs = depth_obs,
-            acoustic_obs = acoustic_obs, acoustic_pos = acoustic_pos,
+res = track(pos_init = p0, bathymetry = bathymetry_map,
+            tsave = tsave,
+            h = h, D = D,
+            observations = [depth_signals, acoustic_obs...],
+            observation_models = [p_obs_depth, acoustic_obs_models...],
+            sensor_positions = [nothing, acoustic_pos...],
             smoothing = true);
 
-# -- Resulting probabilities
+# Resulting probabilities
 # Array{Float32, 4}: Ny × Nx × 1 × time
 res.pos_filter       # Prob(s_t | y_{1...t})
 res.pos_smoother     # Prob(s_t | y_{1...T})
-# Array{Float32, 2}: Ny × Nx
 res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
-# other results
+res.log_p            # Prob(y_t)
 res.tsave            # time points
-res.log_p            # log likelihood
 ```
 
 The inferred probabilities using smoothing:
 
 ![animated probabilities](docs/assets/smoothing_animated.gif)
+
+
+### Defining observations models
+
+The user must define a observation model, that is probability (density) of
+the observed signal given the location, `p(y_t | s_t)`.
+
+For the save redundant computation, the function must have the following signature:
+```
+ p_obs(signals, t::Int, bathymetry_depth::Number, dist::Number)
+```
+where `bathymetry_depth` is the water depth at `s_t` and `dist` is the euclidean
+distance from `s_t` to the sensor location.
+
+Note, if the GPU use is planned, the function must be type stable.
 
 
 ### GPU usage
