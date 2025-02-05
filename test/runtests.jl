@@ -27,6 +27,7 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
     end
 
+
     @testset "Integration tests CPU" begin
 
 
@@ -85,6 +86,7 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         @test size(res.pos_filter) == size(res.pos_smoother)
         @test size(res.pos_filter, 4) == length(tsave)
         @test size(res.pos_filter)[1:2] == size(bathymetry_map)
+        @test length(res.log_p) == length(tsave)
 
         @test all(isfinite.(res.pos_filter))
         @test all(isfinite.(res.pos_smoother))
@@ -96,6 +98,10 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
             @test sum(res.pos_filter[:,:,:,j]) ≈ 1
             @test sum(res.pos_smoother[:,:,:,j]) ≈ 1
         end
+
+        # a crude check to see if results have changed
+        @test sum(abs2, res.pos_filter) ≈ 7.243471f0
+        @test sum(abs2, res.pos_smoother) ≈ 28.4025f0
     end
 
 

@@ -60,10 +60,13 @@ function run_filter(pos_init, H,
     pos_tmp[:,:,1,1] = pos_init
     pos[:,:,1,1] .= pos_tmp[:,:,1,1]
 
+
     pmeter = ProgressMeter.Progress(tmax - 1; desc = "Filtering...:",
                                     output = stderr, enabled = show_progressbar)
 
-    log_p = zero(eltype(H))
+    log_p = similar(H, length(tsave))
+    log_p[1] = 0
+    log_p_acc = zero(eltype(H))
 
     for t in 2:tmax
 
@@ -84,11 +87,13 @@ function run_filter(pos_init, H,
             error("No solution at time point $(t)! Check for data incompatibilities.")
         pos_tmp[:,:,1,1] .= pos_tmp[:,:,1,1] ./ Z
 
-        log_p += log(Z)
+        log_p_acc += log(Z)
 
         # --- save results
         if t in tsave
             pos[:,:,1,time2index(t, tsave)] .= pos_tmp[:,:,1,1]
+            log_p[time2index(t, tsave)] = log_p_acc
+            log_p_acc = zero(eltype(H))
         end
 
         ProgressMeter.next!(pmeter)
