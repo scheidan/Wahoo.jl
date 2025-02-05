@@ -44,7 +44,8 @@ time2index(t, tsave) = findfirst(==(t), tsave)
 
 function run_filter(pos_init, H,
                     bathymetry,
-                    observations, distances;
+                    observations, observation_models,
+                    distances;
                     hops_per_step,
                     tsave=1:100,
                     show_progressbar)
@@ -76,8 +77,9 @@ function run_filter(pos_init, H,
         end
 
         # --- add observations
-        for (k, obs) in enumerate(observations)
-            p_obs, signals = obs
+        for k  in eachindex(observations)
+            p_obs = observation_models[k]
+            signals = observations[k]
             pos_tmp[:,:,1,1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, distances[:,:,k])
         end
 
@@ -122,7 +124,8 @@ end
 
 function run_smoother(pos_filter, H,
                       bathymetry,
-                      observations, distances;
+                      observations, observation_models,
+                      distances;
                       hops_per_step,
                       tsave=1:100,
                       show_progressbar)
@@ -175,9 +178,10 @@ function run_smoother(pos_filter, H,
             pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
             # --- add observations
-            for (k, obs) in enumerate(observations)
-                p_obs, signal = obs
-                pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signal), Ref(t), bathymetry, distances[:,:,k])
+            for k  in eachindex(observations)
+                p_obs = observation_models[k]
+                signals = observations[k]
+                pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, distances[:,:,k])
             end
 
             # --- normalize
@@ -237,7 +241,7 @@ end
 Tracks the location of the fish
 
 ```
-track(pos_init, bathymetry; observations, tsave, h, D, smoothing, use_gpu)
+track(;pos_init, bathymetry, observations,  observation_models, sensor_positions, tsave, h, D, smoothing=true)
 ```
 
 Uses forward filtering based on a diffusion model and optionally smoothing.
@@ -255,8 +259,9 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 - `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
 
 """
-function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray;
+function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                observations::Vector,
+               observation_models::Vector,
                sensor_positions::Vector,
                tsave::AbstractVector = 1:100,
                h, D,
@@ -284,16 +289,20 @@ function track(pos_init::Matrix, bathymetry::GeoArrays.GeoArray;
         pos_init = Float32.(pos_init)
     end
 
-    pos_filter, log_p = run_filter(pos_init, H, bathymetry,
-                            observations, distances;
-                            hops_per_step = n_hops, tsave = tsave,
-                            show_progressbar = show_progressbar)
+    pos_filter, log_p = run_filter(pos_init, H,
+                                   bathymetry,
+                                   observations,
+                                   observation_models,
+                                   distances;
+                                   hops_per_step = n_hops, tsave = tsave,
+                                   show_progressbar = show_progressbar)
 
     if smoothing
 
         pos_smoother, residence_dist = run_smoother(pos_filter, H,
                                                     bathymetry,
                                                     observations,
+                                                    observation_models,
                                                     distances;
                                                     hops_per_step = n_hops,
                                                     tsave = tsave,

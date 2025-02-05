@@ -44,7 +44,6 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         end
 
         depth_signals = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
-        depth_obs = (p_obs_depth, depth_signals)
 
         # -- acoustic observations
 
@@ -55,8 +54,8 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
         acoustic_signals = readdlm(joinpath(pathdata, "acoustic_observations.csv"), ',', header=true)[1][:,2:3]
         acoustic_signals = Int.(acoustic_signals')
-        acoustic_obs = [(p_obs_acoustic, acoustic_signals[1,:]),
-                        (p_obs_acoustic, acoustic_signals[2,:])]
+        acoustic_obs = [ acoustic_signals[1,:], acoustic_signals[2,:]]
+        acoustic_obs_models = [p_obs_acoustic, p_obs_acoustic]
 
         moorings = readdlm(joinpath(pathdata, "acoustic_moorings.csv"), ',', header=true)[1]
         acoustic_pos = tuple.(moorings[:,2], moorings[:,3])
@@ -70,14 +69,15 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
         h = 200                     # spatial resolution [m]
 
-        #tsave = 105:5:200           # time steps to save
-        tsave = 1:5:720           # time steps to save
+        tsave = 1:5:720             # time steps to save
         D = 200^2                   # Diffusion coefficient, i.e. variance of one time step movement [m^2]
 
         # run tracker
-        res = track(p0, bathymetry_map; tsave = tsave,
+        res = track(pos_init = p0, bathymetry = bathymetry_map,
+                    tsave = tsave,
                     h = h, D = D,
-                    observations = [depth_obs, acoustic_obs...],
+                    observations = [depth_signals, acoustic_obs...],
+                    observation_models = [p_obs_depth, acoustic_obs_models...],
                     sensor_positions = [nothing, acoustic_pos...],
                     smoothing = true);
 

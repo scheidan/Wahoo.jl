@@ -10,14 +10,24 @@ using CUDA
 import cuDNN
 import NNlib
 
-function move_to_GPU(H, bathymetry, observations, dist_acoustic)
+function to32bitarray(v)
+    T = eltype(v)
+    if T <: AbstractFloat
+        CuArray{Float32}(v)
+    elseif T <: Int
+        CuArray{Int32}(v)
+    else
+        error("Type $T cannot be converted into a CuArray!")
+    end
+end
 
+
+function move_to_GPU(H, bathymetry, observations, dist_acoustic)
 
     H = CuArray{Float32}(H)
     bathymetry = CuArray{Float32}(bathymetry[:,:,1])
-    observations = [(obs[1], CuArray{Float32}(obs[2])) for obs in observations]
+    observations = [to32bitarray(obs) for obs in observations]
     dist_acoustic = CuArray{Float32}(dist_acoustic)
-
 
     @info "Using GPU: $(CUDA.current_device())"
     return H, bathymetry, observations, dist_acoustic
