@@ -42,6 +42,7 @@ GeoArrays.bbox(bathymetry_map)           # shows coordinates of corners
 
 # define likelihood function
 function p_obs_depth(signals, t, depth::Number, dist::Number)
+	# We are lazy and using a predefined function here.
     Wahoo.p_depth_exponential(signals[t], depth, dist)
 end
 
@@ -117,9 +118,9 @@ the observed signal given the location, `p(y_t | s_t)`.
 
 For the save redundant computation, the function must have the following signature:
 ```
- p_obs(signals, t::Int, depth::Number, dist::Number)
+ p_obs(signals, t::Int, bathymetry_depth::Number, dist::Number)
 ```
-where `depth` is the water depth at `s_t` and `dist` is the euclidean
+where `bathymetry_depth` is the water depth at `s_t` and `dist` is the euclidean
 distance from `s_t` to the sensor location.
 
 Note, if the GPU use is planned, the function must be type stable.
