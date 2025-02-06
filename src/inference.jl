@@ -65,8 +65,7 @@ function run_filter(pos_init, H,
     pmeter = ProgressMeter.Progress(tmax - 1; desc = "Filtering...:",
                                     output = stderr, enabled = show_progressbar)
 
-    log_p = similar(H, length(tsave))
-    log_p[1] = 0
+    log_p = zeros(eltype(H), length(tsave))
     log_p_acc = zero(eltype(H))
 
     for t in 2:tmax
