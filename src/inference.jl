@@ -310,10 +310,10 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
         return (pos_smoother = Array(pos_smoother),
                 pos_filter = Array(pos_filter),
                 residence_dist = Array(residence_dist),
-                log_p = log_p,
+                log_p = Array(log_p),
                 tsave = tsave)
     else
-        return  (pos_filter = Array(pos_filter), log_p = log_p, tsave = tsave)
+        return  (pos_filter = Array(pos_filter), log_p = Array(log_p), tsave = tsave)
     end
 
 end
