@@ -9,7 +9,7 @@ function build_distances(sensor_positions::Vector,
                          bathymetry::GeoArrays.GeoArray, h)
 
     ny, nx = size(bathymetry)[1:2]
-    distances = zeros(Float32, ny, nx, length(sensor_positions))
+    distances = zeros(eltype(bathymetry), ny, nx, length(sensor_positions))
 
     for (k, pos) in enumerate(sensor_positions)
         if !isnothing(pos)
@@ -59,7 +59,7 @@ function p_acoustic_sigmoid(signal, waterdepth, dist; d0 = 1000f0, k = 200f0)
         # 1 - 1/(1 + exp(-(dist - d0)/k))
         1 - NNlib.sigmoid((dist - d0)/k)
     else  # sensor not active
-        one(eltype(dist))
+        one(waterdepth)
     end
 
     return p

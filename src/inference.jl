@@ -11,7 +11,7 @@ Compute convolution kernel and the required number of hope per time steps
 D: diffusion coefficient
 h: spatial resolution
 """
-function make_kernel(;D, h)
+function make_kernel(;D, h, precision)
 
     # compute 1/Δ, so that 4*D*Δ/h^2 < 1
     n_hops = ceil(Int, 4*D/(h^2*0.99))
@@ -26,7 +26,7 @@ function make_kernel(;D, h)
     H = H + D*Δ/h^2 .* [0  1  0;
                         1 -4  1;
                         0  1  0]
-    H = Float32.(reshape(H, 3, 3, 1, 1))
+    H = precision.(reshape(H, 3, 3, 1, 1))
 
     H, n_hops
 end
@@ -256,6 +256,7 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 - `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
 - `smoothing`: Boolean flag to enable smoothing
 - `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
+- `precision = Float32`: numerical floating point type used for computations
 
 """
 function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
@@ -265,7 +266,8 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                tsave::AbstractVector = 1:100,
                h, D,
                smoothing::Bool=true,
-               show_progressbar::Bool = !is_logging(stderr))
+               show_progressbar::Bool = !is_logging(stderr),
+               precision=Float32)
 
     @assert size(pos_init) == size(bathymetry)[1:2]
 
@@ -273,7 +275,7 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
 
 
     # convolution kerel
-    H, n_hops = make_kernel(D=D, h=h)
+    H, n_hops = make_kernel(D=D, h=h, precision=precision)
 
     # precompute distances to sensors
     distances = build_distances(sensor_positions, bathymetry, h)
@@ -282,11 +284,13 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
 
     cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
     if !isnothing(cudaext) # check if we have CUDA.jl loaded
-        H, bathymetry, observations, distances = cudaext.move_to_GPU(H, bathymetry, observations, distances)
+        H, bathymetry, observations, distances = cudaext.move_to_GPU(H, bathymetry, observations, distances, precision)
     else                   # use CPU
-        bathymetry = Float32.(bathymetry[:,:,1])
-        pos_init = Float32.(pos_init)
+        bathymetry = precision.(bathymetry[:,:,1])
+        pos_init = precision.(pos_init)
     end
+
+    @info "Using $precision for computations"
 
     pos_filter, log_p = run_filter(pos_init, H,
                                    bathymetry,
