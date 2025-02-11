@@ -79,7 +79,8 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
                     observations = [depth_signals, acoustic_obs...],
                     observation_models = [p_obs_depth, acoustic_obs_models...],
                     sensor_positions = [nothing, acoustic_pos...],
-                    smoothing = true);
+                    smoothing = true,
+                    precision = Float32)
 
         # check dimensions
         @test res.tsave == tsave
@@ -100,8 +101,8 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         end
 
         # a crude check to see if results have changed
-        @test sum(abs2, res.pos_filter) ≈ 7.243471f0
-        @test sum(abs2, res.pos_smoother) ≈ 28.4025f0
+        @test sum(abs2, res.pos_filter) ≈ 5.656419f0
+        @test sum(abs2, res.pos_smoother) ≈ 24.169027f0
     end
 
 
