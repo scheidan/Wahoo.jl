@@ -1,12 +1,14 @@
 
 import StatsBase
 
-function run_trajectory(pos_filter, H,
-                        bathymetry,
-                        observations, observation_models,
-                        distances;
-                        hops_per_step,
-                        show_progressbar)
+function sample_trajectories(pos_filter, H,
+                             bathymetry,
+                             observations, observation_models,
+                             distances;
+                             tsave = tsave,
+                             n_trajectories,
+                             hops_per_step,
+                             show_progressbar)
 
     ext = Base.get_extension(@__MODULE__, :CUDAExt)
 
@@ -15,7 +17,7 @@ function run_trajectory(pos_filter, H,
 
     nx, ny = size(pos_filter)[1:2]
 
-    trajectory = Array{Int}(undef, 2, 1:tmax)
+    trajectory = zeros(Int, 2, tmax)
 
     pos_distribution_tmp = similar(pos_filter, nx, ny, 1)
     pos_distribution_tmp[:,:,1] .= pos_filter[:,:,1,end]
@@ -24,7 +26,7 @@ function run_trajectory(pos_filter, H,
     residence_dist = similar(pos_filter, nx, ny)
     residence_dist[:,:] .= pos_filter[:,:,1,end]
 
-    pmeter = ProgressMeter.Progress(n_tsave - 1; desc = "Sample trajectory...:",
+    pmeter = ProgressMeter.Progress(n_tsave - 1; desc = "Sample trajectories...:",
                                     output = stderr, enabled = show_progressbar)
 
     # jth jump back in time
@@ -75,7 +77,7 @@ function run_trajectory(pos_filter, H,
 
         # !!!TODO!!!: sample multible trajectories at once!
 
-        pos_distribution_tmp[:,:,1,1] .= pos_smoother[:,:,1,time2index(tsave_jump[end], tsave)]
+        #pos_distribution_tmp[:,:,1,1] .= pos_smoother[:,:,1,time2index(tsave_jump[end], tsave)]
 
         for (i, t) in enumerate(reverse(tsave_jump)[2:end])
 
@@ -83,8 +85,8 @@ function run_trajectory(pos_filter, H,
 
             # --- sample position (i,j) ~ pos_distribution_tmp[j,j,1,1]
             # Sample a linear index with weights from the flattened matrix
-            idx = StatsBase.sample(1:length(pos_distribution_tmp), StatsBase.Weights(vec(pos_distribution_tmp)))
-            y, x, _, _ = Tuple(CartesianIndex(pos_distribution_tmp)[idx])
+            sample_idx = StatsBase.sample(1:length(pos_distribution_tmp), StatsBase.Weights(vec(pos_distribution_tmp)))
+            y, x, _, = Tuple(CartesianIndices(pos_distribution_tmp)[sample_idx])
 
             # inital ditribution
             pos_distribution_tmp[:,:,1,1] .= 0

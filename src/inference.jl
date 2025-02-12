@@ -314,13 +314,15 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                                                     show_progressbar = show_progressbar)
 
         if n_trajectories >0
-            trajectories = run_smoother(pos_filter, H,
-                                        bathymetry,
-                                        observations,
-                                        observation_models,
-                                        distances;
-                                        hops_per_step = n_hops,
-                                        show_progressbar = show_progressbar)
+            trajectories =  sample_trajectories(pos_filter, H,
+                                                bathymetry,
+                                                observations,
+                                                observation_models,
+                                                distances;
+                                                tsave = tsave,
+                                                n_trajectories =  n_trajectories,
+                                                hops_per_step = n_hops,
+                                                show_progressbar = show_progressbar)
         else
             trajectories = nothing
         end
@@ -330,7 +332,7 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                 residence_dist = Array(residence_dist),
                 trajectories = trajectories,
                 log_p = Array(log_p),
-                tsave = tsave,
+                tsave = tsave)
     else
         return  (pos_filter = Array(pos_filter), log_p = Array(log_p), tsave = tsave)
     end
