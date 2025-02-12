@@ -26,7 +26,7 @@ function sample_trajectories(pos_filter, H,
     residence_dist = similar(pos_filter, nx, ny)
     residence_dist[:,:] .= pos_filter[:,:,1,end]
 
-    pmeter = ProgressMeter.Progress(n_tsave - 1; desc = "Sample trajectories...:",
+    pmeter = ProgressMeter.Progress(n_tsave - 1; desc = "Sample $n_trajectories trajectories...:",
                                     output = stderr, enabled = show_progressbar)
 
     # jth jump back in time
