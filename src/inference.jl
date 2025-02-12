@@ -255,6 +255,7 @@ Uses forward filtering based on a diffusion model and optionally smoothing.
 - `h`: spatial resolution [m]
 - `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
 - `smoothing`: Boolean flag to enable smoothing
+- `n_trajectories=0`: Number of trajectories to sample
 - `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
 - `precision = Float32`: numerical floating point type used for computations
 
@@ -266,6 +267,7 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                tsave::AbstractVector = 1:100,
                h, D,
                smoothing::Bool=true,
+               n_trajectories::Int=0,
                show_progressbar::Bool = !is_logging(stderr),
                precision=Float32)
 
@@ -311,11 +313,24 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                                                     tsave = tsave,
                                                     show_progressbar = show_progressbar)
 
+        if n_trajectories >0
+            trajectories = run_smoother(pos_filter, H,
+                                        bathymetry,
+                                        observations,
+                                        observation_models,
+                                        distances;
+                                        hops_per_step = n_hops,
+                                        show_progressbar = show_progressbar)
+        else
+            trajectories = nothing
+        end
+
         return (pos_smoother = Array(pos_smoother),
                 pos_filter = Array(pos_filter),
                 residence_dist = Array(residence_dist),
+                trajectories = trajectories,
                 log_p = Array(log_p),
-                tsave = tsave)
+                tsave = tsave,
     else
         return  (pos_filter = Array(pos_filter), log_p = Array(log_p), tsave = tsave)
     end
