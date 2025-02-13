@@ -1,6 +1,17 @@
 
 import StatsBase
 
+"""
+If `dist` is a array of probabilities, sample an elemnet and returns the first two indices
+"""
+function sample_index(dist::Array)
+     # Sample a linear index with weights from the flattened matrix
+    sample_idx = StatsBase.sample(1:length(dist), StatsBase.Weights(vec(dist)))
+    y, x, _ = Tuple(CartesianIndices(dist)[sample_idx])
+    return y, x
+end
+
+
 function sample_trajectories(pos_filter, H,
                              bathymetry,
                              observations, observation_models,
@@ -14,17 +25,17 @@ function sample_trajectories(pos_filter, H,
 
     tmax = maximum(tsave)
     n_tsave = length(tsave)
-
     nx, ny = size(pos_filter)[1:2]
 
-    trajectory = zeros(Int, 2, tmax)
+    trajectories = [zeros(Int, 2, tmax) for _ in 1:n_trajectories]
 
     pos_distribution_tmp = similar(pos_filter, nx, ny, 1)
     pos_distribution_tmp[:,:,1] .= pos_filter[:,:,1,end]
 
-    # distribution of resdence time over all time steps
-    residence_dist = similar(pos_filter, nx, ny)
-    residence_dist[:,:] .= pos_filter[:,:,1,end]
+    # Sample initial point
+    for k in 1:n_trajectories
+        trajectories[k][:, end] .= sample_index(pos_distribution_tmp)
+    end
 
     pmeter = ProgressMeter.Progress(n_tsave - 1; desc = "Sample $n_trajectories trajectories...:",
                                     output = stderr, enabled = show_progressbar)
@@ -85,10 +96,9 @@ function sample_trajectories(pos_filter, H,
 
             # --- sample position (i,j) ~ pos_distribution_tmp[j,j,1,1]
             # Sample a linear index with weights from the flattened matrix
-            sample_idx = StatsBase.sample(1:length(pos_distribution_tmp), StatsBase.Weights(vec(pos_distribution_tmp)))
-            y, x, _, = Tuple(CartesianIndices(pos_distribution_tmp)[sample_idx])
+            y, x = sample_index(pos_distribution_tmp)
 
-            # inital ditribution
+            # inital distribution
             pos_distribution_tmp[:,:,1,1] .= 0
             pos_distribution_tmp[y,x,1,1] = 1
 
@@ -106,13 +116,13 @@ function sample_trajectories(pos_filter, H,
             pos_distribution_tmp[:,:,1,1] ./= sum(pos_distribution_tmp[:,:,1,1])
 
             # --- save
-            trajectory[1, t] = y
-            trajectory[2, t] = x
+            trajectories[1][:, t] .= (y, x)
+
         end
 
         ProgressMeter.next!(pmeter)
 
     end
 
-    return  trajectory
+    return  trajectories
 end
