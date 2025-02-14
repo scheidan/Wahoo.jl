@@ -31,15 +31,14 @@ function sample_trajectories(pos_filter, H,
 
     pos_distribution_tmp = similar(pos_filter, nx, ny, 1)
 
-    pmeter = ProgressMeter.Progress(n_trajectories; desc = "Sample $n_trajectories trajectories...:",
+    pmeter = ProgressMeter.Progress(n_trajectories*(n_tsave-1); desc = "Sample $n_trajectories trajectories...:",
                                     output = stderr, enabled = show_progressbar)
 
-    for n in 1:n_trajectories
+    for n_trj in 1:n_trajectories
         pos_distribution_tmp[:,:,1] .= pos_filter[:,:,1,end]
 
         # Sample initial point
-        trajectories[n][:, end] .= sample_index(pos_distribution_tmp)
-
+        trajectories[n_trj][:, end] .= sample_index(pos_distribution_tmp)
 
         # jth jump back in time
         for j in (n_tsave-1):-1:1
@@ -54,7 +53,6 @@ function sample_trajectories(pos_filter, H,
             pos_filter_jump_no_obs = similar(pos_filter, nx, ny, 1, length(tsave_jump))   # P(s_{t+1} | y_{1:t})
 
             pos_filter_jump[:,:,1,1] .= pos_filter_jump_no_obs[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
-
 
             for (i,t) in enumerate(tsave_jump[1:(end-1)])
 
@@ -84,18 +82,17 @@ function sample_trajectories(pos_filter, H,
                     error("No solution at time point $(t)!")
                 pos_filter_jump[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1] ./ Z
 
-
             end
 
+
             # -----------
-            # 2) backward smoothing
+            # 2) sample trajectory
 
             for (i, t) in enumerate(reverse(tsave_jump)[2:end])
 
                 idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
 
                 # --- sample position (i,j) ~ pos_distribution_tmp[j,j,1,1]
-                # Sample a linear index with weights from the flattened matrix
                 y, x = sample_index(pos_distribution_tmp)
 
                 # inital distribution
@@ -104,7 +101,6 @@ function sample_trajectories(pos_filter, H,
 
                 # treat division by zero as special case
                 pos_distribution_tmp[:,:,1,1] .= divzero.(pos_distribution_tmp[:,:,1,1], pos_filter_jump_no_obs[:,:,1,idx])
-
 
                 # --- solve Fokker-Plank backwards
                 # K = rot180(H) = H if no advections
@@ -115,16 +111,16 @@ function sample_trajectories(pos_filter, H,
                 # you can't be on land (negative bathymetry)
                 pos_distribution_tmp .= ifelse.(bathymetry .< 0, 0, pos_distribution_tmp)
 
-                pos_distribution_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1,1] #.+ eps(0f0)
+                pos_distribution_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1,1]
                 pos_distribution_tmp[:,:,1,1] ./= sum(pos_distribution_tmp[:,:,1,1])
 
                 # --- save
-                trajectories[n][:, t] .= (y, x)
+                trajectories[n_trj][:, t] .= (y, x)
 
             end
 
+            ProgressMeter.next!(pmeter)
         end
-        ProgressMeter.next!(pmeter)
 
     end
     return  trajectories
