@@ -75,7 +75,7 @@ function sample_trajectories(pos_filter, H,
                 for k  in eachindex(observations)
                     p_obs = observation_models[k]
                     signals = observations[k]
-                    pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, view(distances, :,:,k))
+                    pos_filter_jump[:,:,1,i+1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, view(distances, :,:,k))
                 end
 
                 # --- normalize
