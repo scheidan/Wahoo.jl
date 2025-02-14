@@ -65,6 +65,9 @@ function sample_trajectories(pos_filter, H,
                     pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
                 end
 
+                # you can't be on land (negative bathymetry)
+                pos_filter_jump .= ifelse.(bathymetry .< 0, 0, pos_filter_jump)
+
                 # --- save P(s_{t+1} | y_{1:t})
                 pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
@@ -108,6 +111,9 @@ function sample_trajectories(pos_filter, H,
                 for k in 1:hops_per_step
                     pos_distribution_tmp[:,:,1,1] = NNlib.conv(pos_distribution_tmp[:,:,1:1,1:1], H, pad=1)
                 end
+
+                # you can't be on land (negative bathymetry)
+                pos_distribution_tmp .= ifelse.(bathymetry .< 0, 0, pos_distribution_tmp)
 
                 pos_distribution_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1,1] #.+ eps(0f0)
                 pos_distribution_tmp[:,:,1,1] ./= sum(pos_distribution_tmp[:,:,1,1])

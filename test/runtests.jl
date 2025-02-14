@@ -102,7 +102,7 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
         # a crude check to see if results have changed
         @test sum(abs2, res.pos_filter) ≈ 5.656419f0
-        @test sum(abs2, res.pos_smoother) ≈ 24.169027f0
+        @test sum(abs2, res.pos_smoother) ≈ 24.840557f0
     end
 
 
