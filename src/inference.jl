@@ -75,6 +75,9 @@ function run_filter(pos_init, H,
             pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
         end
 
+        # you can't be on land (negative bathymetry)
+        pos_tmp .= ifelse.(bathymetry .< 0, 0, pos_tmp)
+
         # --- add observations
         for k  in eachindex(observations)
             p_obs = observation_models[k]
@@ -173,6 +176,9 @@ function run_smoother(pos_filter, H,
                 pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
             end
 
+            # you can't be on land (negative bathymetry)
+            pos_filter_jump .= ifelse.(bathymetry .< 0, 0, pos_filter_jump)
+
             # --- save P(s_{t+1} | y_{1:t})
             pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
@@ -180,7 +186,7 @@ function run_smoother(pos_filter, H,
             for k  in eachindex(observations)
                 p_obs = observation_models[k]
                 signals = observations[k]
-                pos_filter_jump[:,:,1,1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, view(distances, :,:,k))
+                pos_filter_jump[:,:,1,i+1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, view(distances, :,:,k))
             end
 
             # --- normalize
@@ -212,6 +218,9 @@ function run_smoother(pos_filter, H,
                 pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
             end
 
+            # you can't be on land (negative bathymetry)
+            pos_smoother_tmp .= ifelse.(bathymetry .< 0, 0, pos_smoother_tmp)
+
             pos_smoother_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_smoother_tmp[:,:,1,1] #.+ eps(0f0)
             pos_smoother_tmp[:,:,1,1] ./= sum(pos_smoother_tmp[:,:,1,1])
 
@@ -233,95 +242,3 @@ function run_smoother(pos_filter, H,
 
     return (pos_smoother, residence_dist)
 end
-
-
-
-"""
-Tracks the location of the fish
-
-```
-track(;pos_init, bathymetry, observations,  observation_models, sensor_positions, tsave, h, D, smoothing=true)
-```
-
-Uses forward filtering based on a diffusion model and optionally smoothing.
-
-# Arguments
-
-- `pos_init::Matrix`: Initial probability distribution of the fish positions
-- `bathymetry`: Bathymetric data of the environment
-- `observations`: Vector of all observations
-- `sensor_positions`: Vector of tuples or `nothing` containing the positions of the receivers
-- `tsave::AbstractVector`: Time steps at which to save the probability map
-- `h`: spatial resolution [m]
-- `D`: Diffusion coefficient, i.e. variance for one time step movement [m^2]
-- `smoothing`: Boolean flag to enable smoothing
-- `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
-- `precision = Float32`: numerical floating point type used for computations
-
-"""
-function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
-               observations::Vector,
-               observation_models::Vector,
-               sensor_positions::Vector,
-               tsave::AbstractVector = 1:100,
-               h, D,
-               smoothing::Bool=true,
-               show_progressbar::Bool = !is_logging(stderr),
-               precision=Float32)
-
-    @assert size(pos_init) == size(bathymetry)[1:2]
-
-    nx, ny = size(pos_init)
-
-
-    # convolution kerel
-    H, n_hops = make_kernel(D=D, h=h, precision=precision)
-
-    # precompute distances to sensors
-    distances = build_distances(sensor_positions, bathymetry, h)
-
-    # run filter
-
-    cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
-    if !isnothing(cudaext) # check if we have CUDA.jl loaded
-        H, bathymetry, observations, distances = cudaext.move_to_GPU(H, bathymetry, observations, distances, precision)
-    else                   # use CPU
-        bathymetry = precision.(bathymetry[:,:,1])
-        pos_init = precision.(pos_init)
-    end
-
-    @info "Using $precision for computations"
-
-    pos_filter, log_p = run_filter(pos_init, H,
-                                   bathymetry,
-                                   observations,
-                                   observation_models,
-                                   distances;
-                                   hops_per_step = n_hops, tsave = tsave,
-                                   show_progressbar = show_progressbar)
-
-    if smoothing
-
-        pos_smoother, residence_dist = run_smoother(pos_filter, H,
-                                                    bathymetry,
-                                                    observations,
-                                                    observation_models,
-                                                    distances;
-                                                    hops_per_step = n_hops,
-                                                    tsave = tsave,
-                                                    show_progressbar = show_progressbar)
-
-        return (pos_smoother = Array(pos_smoother),
-                pos_filter = Array(pos_filter),
-                residence_dist = Array(residence_dist),
-                log_p = Array(log_p),
-                tsave = tsave)
-    else
-        return  (pos_filter = Array(pos_filter), log_p = Array(log_p), tsave = tsave)
-    end
-
-end
-
-# Little helper:
-# Check if a stream is logged. From: https://github.com/timholy/ProgressMeter.jl
-is_logging(io) = isa(io, Base.TTY) == false || (get(ENV, "CI", nothing) == "true")

@@ -4,6 +4,9 @@ using Test
 import Wahoo.GeoArrays
 using DelimitedFiles: readdlm
 
+import Random
+Random.seed!(14022025)
+
 using Logging
 global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
@@ -80,6 +83,7 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
                     observation_models = [p_obs_depth, acoustic_obs_models...],
                     sensor_positions = [nothing, acoustic_pos...],
                     smoothing = true,
+                    n_trajectories = 2,
                     precision = Float32)
 
         # check dimensions
@@ -100,9 +104,16 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
             @test sum(res.pos_smoother[:,:,:,j]) ≈ 1
         end
 
+        @test length(res.trajectories) == 2
+        @test size((res.trajectories[1])) == (2, length(minimum(tsave):maximum(tsave)))
+        for k in 1:length(res.trajectories)
+            @test all(1 .<= res.trajectories[k][1,:] .<= size(bathymetry_map, 1)) # y-coordinates
+            @test all(1 .<= res.trajectories[k][2,:] .<= size(bathymetry_map, 2)) # x-coordinates
+        end
+
         # a crude check to see if results have changed
         @test sum(abs2, res.pos_filter) ≈ 5.656419f0
-        @test sum(abs2, res.pos_smoother) ≈ 24.169027f0
+        @test sum(abs2, res.pos_smoother) ≈ 7.3226733f0
     end
 
 
