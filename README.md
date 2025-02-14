@@ -95,13 +95,15 @@ res = track(pos_init = p0, bathymetry = bathymetry_map,
             observations = [depth_signals, acoustic_obs...],
             observation_models = [p_obs_depth, acoustic_obs_models...],
             sensor_positions = [nothing, acoustic_pos...],
-            smoothing = true);
+            smoothing = true,
+			n_trajectories = 2);
 
 # Resulting probabilities
 # Array{Float32, 4}: Ny × Nx × 1 × time
 res.pos_filter       # Prob(s_t | y_{1...t})
 res.pos_smoother     # Prob(s_t | y_{1...T})
 res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
+res.trajectories     # Vector of trajectories sampled from Prob(s_{1...T} | y_{1...T})
 res.log_p            # Prob(y_t)
 res.tsave            # time points
 ```
