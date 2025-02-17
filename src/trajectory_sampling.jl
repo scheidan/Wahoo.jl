@@ -2,7 +2,7 @@
 import StatsBase
 
 """
-If `dist` is a array of probabilities, sample an elemnet and returns the first two indices
+If `dist` is a array of probabilities, sample an element and returns the first two indices.
 """
 function sample_index(dist::Array)
      # Sample a linear index with weights from the flattened matrix
@@ -12,6 +12,18 @@ function sample_index(dist::Array)
 end
 
 
+"""
+Set all values of A to zero except A[y,x] to one.
+"""
+function one_hot!(A::Array, y, x)
+    A .= zero(eltype(A))
+    A[y, x] = one(eltype(A))
+end
+
+
+"""
+Sample random trajectories form the joint distribution Prob(s_{1...T} | y_{1...T}).
+"""
 function sample_trajectories(pos_filter, H,
                              bathymetry,
                              observations, observation_models,
@@ -96,8 +108,7 @@ function sample_trajectories(pos_filter, H,
                 y, x = sample_index(pos_distribution_tmp)
 
                 # inital distribution
-                pos_distribution_tmp[:,:,1,1] .= 0
-                pos_distribution_tmp[y,x,1,1] = 1
+                one_hot!(pos_distribution_tmp, y, x)
 
                 # treat division by zero as special case
                 pos_distribution_tmp[:,:,1,1] .= divzero.(pos_distribution_tmp[:,:,1,1], pos_filter_jump_no_obs[:,:,1,idx])
@@ -113,6 +124,7 @@ function sample_trajectories(pos_filter, H,
 
                 pos_distribution_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1,1]
                 pos_distribution_tmp[:,:,1,1] ./= sum(pos_distribution_tmp[:,:,1,1])
+
 
                 # --- save
                 trajectories[n_trj][:, t] .= (y, x)
