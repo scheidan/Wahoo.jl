@@ -44,14 +44,15 @@ Uses the Max-Gumbel trick, see: https://arxiv.org/abs/2110.01515
 function Wahoo.sample_index(dist::CuArray)
     logw = log.(dist)
     # Generate uniform random numbers on the GPU.
-    U = CUDA.rand(size(dist)...)
+    # N.B. We must avoid 0f0 and 1f0 !!!
+    U = clamp.(CUDA.rand(size(dist)...), eps(eltype(dist)), 1 - eps(eltype(dist)))
     # Compute Gumbel noise: G = -log(-log(U))
     G = -log.(-log.(U))
     # The Gumbel trick: add noise to log(weights)...
     scores = logw .+ G
     # ...and find the index of the maximum score.
     _, idxs = findmax(scores)
-    Int32(idxs[1]), Int32(idxs[2])
+    return Int32(idxs[1]), Int32(idxs[2])
 end
 
 

@@ -111,6 +111,7 @@ function sample_trajectories(pos_filter, H,
                 one_hot!(pos_distribution_tmp, y, x)
 
                 # treat division by zero as special case
+                # N.B. everything is zero except [y,x]. So does the divisions make sense?
                 pos_distribution_tmp[:,:,1,1] .= divzero.(pos_distribution_tmp[:,:,1,1], pos_filter_jump_no_obs[:,:,1,idx])
 
                 # --- solve Fokker-Plank backwards
@@ -122,9 +123,8 @@ function sample_trajectories(pos_filter, H,
                 # you can't be on land (negative bathymetry)
                 pos_distribution_tmp .= ifelse.(bathymetry .< 0, 0, pos_distribution_tmp)
 
-                pos_distribution_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1,1]
-                pos_distribution_tmp[:,:,1,1] ./= sum(pos_distribution_tmp[:,:,1,1])
-
+                pos_distribution_tmp[:,:,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1]
+                pos_distribution_tmp ./= sum(pos_distribution_tmp)
 
                 # --- save
                 trajectories[n_trj][:, t] .= (y, x)
