@@ -2,7 +2,7 @@
 import StatsBase
 
 """
-If `dist` is a array of probabilities, sample an elemnet and returns the first two indices
+If `dist` is a array of probabilities, sample an element and returns the first two indices.
 """
 function sample_index(dist::Array)
      # Sample a linear index with weights from the flattened matrix
@@ -12,6 +12,18 @@ function sample_index(dist::Array)
 end
 
 
+"""
+Set all values of A to zero except A[y,x] to one.
+"""
+function one_hot!(A::Array, y, x)
+    A .= zero(eltype(A))
+    A[y, x] = one(eltype(A))
+end
+
+
+"""
+Sample random trajectories form the joint distribution Prob(s_{1...T} | y_{1...T}).
+"""
 function sample_trajectories(pos_filter, H,
                              bathymetry,
                              observations, observation_models,
@@ -50,9 +62,8 @@ function sample_trajectories(pos_filter, H,
 
             # holds reconstructed filter results
             pos_filter_jump = similar(pos_filter, nx, ny, 1, length(tsave_jump))          # P(s_t | y_{1:t})
-            pos_filter_jump_no_obs = similar(pos_filter, nx, ny, 1, length(tsave_jump))   # P(s_{t+1} | y_{1:t})
 
-            pos_filter_jump[:,:,1,1] .= pos_filter_jump_no_obs[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
+            pos_filter_jump[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
 
             for (i,t) in enumerate(tsave_jump[1:(end-1)])
 
@@ -65,9 +76,6 @@ function sample_trajectories(pos_filter, H,
 
                 # you can't be on land (negative bathymetry)
                 pos_filter_jump .= ifelse.(bathymetry .< 0, 0, pos_filter_jump)
-
-                # --- save P(s_{t+1} | y_{1:t})
-                pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
                 # --- add observations
                 for k  in eachindex(observations)
@@ -92,15 +100,15 @@ function sample_trajectories(pos_filter, H,
 
                 idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
 
-                # --- sample position (i,j) ~ pos_distribution_tmp[j,j,1,1]
+                # --- sample position (y,x) ~ pos_distribution_tmp[y,x,1,1]
                 y, x = sample_index(pos_distribution_tmp)
 
                 # inital distribution
-                pos_distribution_tmp[:,:,1,1] .= 0
-                pos_distribution_tmp[y,x,1,1] = 1
+                one_hot!(pos_distribution_tmp, y, x)
 
-                # treat division by zero as special case
-                pos_distribution_tmp[:,:,1,1] .= divzero.(pos_distribution_tmp[:,:,1,1], pos_filter_jump_no_obs[:,:,1,idx])
+                # As everything is zero except [y,x], we can skip the division by P(s_{t+1} | y_{1:t}),
+                # it only changes the scaling that is normalized later anyway.
+                # pos_distribution_tmp .= divzero.(pos_distribution_tmp, pos_filter_jump_no_obs[:,:,1,idx])
 
                 # --- solve Fokker-Plank backwards
                 # K = rot180(H) = H if no advections
@@ -111,8 +119,8 @@ function sample_trajectories(pos_filter, H,
                 # you can't be on land (negative bathymetry)
                 pos_distribution_tmp .= ifelse.(bathymetry .< 0, 0, pos_distribution_tmp)
 
-                pos_distribution_tmp[:,:,1,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1,1]
-                pos_distribution_tmp[:,:,1,1] ./= sum(pos_distribution_tmp[:,:,1,1])
+                pos_distribution_tmp .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp
+                pos_distribution_tmp ./= sum(pos_distribution_tmp)
 
                 # --- save
                 trajectories[n_trj][:, t] .= (y, x)
