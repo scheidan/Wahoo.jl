@@ -62,9 +62,8 @@ function sample_trajectories(pos_filter, H,
 
             # holds reconstructed filter results
             pos_filter_jump = similar(pos_filter, nx, ny, 1, length(tsave_jump))          # P(s_t | y_{1:t})
-            pos_filter_jump_no_obs = similar(pos_filter, nx, ny, 1, length(tsave_jump))   # P(s_{t+1} | y_{1:t})
 
-            pos_filter_jump[:,:,1,1] .= pos_filter_jump_no_obs[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
+            pos_filter_jump[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
 
             for (i,t) in enumerate(tsave_jump[1:(end-1)])
 
@@ -77,9 +76,6 @@ function sample_trajectories(pos_filter, H,
 
                 # you can't be on land (negative bathymetry)
                 pos_filter_jump .= ifelse.(bathymetry .< 0, 0, pos_filter_jump)
-
-                # --- save P(s_{t+1} | y_{1:t})
-                pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
 
                 # --- add observations
                 for k  in eachindex(observations)
@@ -104,15 +100,15 @@ function sample_trajectories(pos_filter, H,
 
                 idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
 
-                # --- sample position (i,j) ~ pos_distribution_tmp[j,j,1,1]
+                # --- sample position (y,x) ~ pos_distribution_tmp[y,x,1,1]
                 y, x = sample_index(pos_distribution_tmp)
 
                 # inital distribution
                 one_hot!(pos_distribution_tmp, y, x)
 
-                # treat division by zero as special case
-                # N.B. everything is zero except [y,x]. So does the divisions make sense?
-                pos_distribution_tmp[:,:,1,1] .= divzero.(pos_distribution_tmp[:,:,1,1], pos_filter_jump_no_obs[:,:,1,idx])
+                # As everything is zero except [y,x], we can skip the division by P(s_{t+1} | y_{1:t}),
+                # it only changes the scaling that is normalized later anyway.
+                # pos_distribution_tmp .= divzero.(pos_distribution_tmp, pos_filter_jump_no_obs[:,:,1,idx])
 
                 # --- solve Fokker-Plank backwards
                 # K = rot180(H) = H if no advections
@@ -123,7 +119,7 @@ function sample_trajectories(pos_filter, H,
                 # you can't be on land (negative bathymetry)
                 pos_distribution_tmp .= ifelse.(bathymetry .< 0, 0, pos_distribution_tmp)
 
-                pos_distribution_tmp[:,:,1] .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp[:,:,1]
+                pos_distribution_tmp .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp
                 pos_distribution_tmp ./= sum(pos_distribution_tmp)
 
                 # --- save
