@@ -81,8 +81,8 @@ idx = GeoArrays.indices(bathymetry_map, (709757.111649658, 6.26772603565296e6)) 
 p0[idx] = 1
 
 tsave = 1:2:720             # time steps to save
-h = 200                     # spatial resolution [m]
-D = 200^2                   # Diffusion coefficient, i.e. variance of one time step movement [m^2]
+movement_std = 100          # standard deviation of the fish movement for one time step [m]
+spatial_resolution = 200    # spatial resolution [m]
 
 
 # -----------
@@ -91,11 +91,11 @@ D = 200^2                   # Diffusion coefficient, i.e. variance of one time s
 
 res = track(pos_init = p0, bathymetry = bathymetry_map,
             tsave = tsave,
-            h = h, D = D,
+            spatial_resolution = spatial_resolution,
+            movement_std = movement_std,
             observations = [depth_signals, acoustic_obs...],
             observation_models = [p_obs_depth, acoustic_obs_models...],
             sensor_positions = [nothing, acoustic_pos...],
-            smoothing = true,
 			n_trajectories = 2);
 
 # Resulting probabilities

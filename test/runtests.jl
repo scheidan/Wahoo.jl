@@ -71,18 +71,18 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         p0[idx] = 1
 
         h = 200                     # spatial resolution [m]
+        movement_std = 200          # std of one time step movement [m]
 
         tsave = 1:5:720             # time steps to save
-        D = 200^2                   # Diffusion coefficient, i.e. variance of one time step movement [m^2]
 
         # run tracker
         res = track(pos_init = p0, bathymetry = bathymetry_map,
                     tsave = tsave,
-                    h = h, D = D,
+                    spatial_resolution = h,  movement_std = movement_std,
                     observations = [depth_signals, acoustic_obs...],
                     observation_models = [p_obs_depth, acoustic_obs_models...],
                     sensor_positions = [nothing, acoustic_pos...],
-                    smoothing = true,
+                    save_filter = true,
                     n_trajectories = 2,
                     precision = Float32)
 
