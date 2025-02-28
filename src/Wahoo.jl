@@ -66,10 +66,18 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                show_progressbar::Bool = !is_logging(stderr),
                precision=Float32)
 
-    @assert size(pos_init) == size(bathymetry)[1:2]
+    # Ensure that observations, observation_models, and sensor_positions have the same length
+    if !(length(observations) == length(observation_models) == length(sensor_positions))
+        error("The lengths of `observations` (length = $(length(observations))), `observation_models` " *
+            "(length = $(length(observation_models))), and `sensor_positions` (length = $(length(sensor_positions))) must be the same.")
+    end
+
+    # Check if pos_init and bathymetry sizes match
+    if size(pos_init) != size(bathymetry)[1:2]
+        error("The size of `pos_init` $(size(pos_init)) must match the first two dimensions of `bathymetry` $(size(bathymetry)[1:2]).")
+    end
 
     nx, ny = size(pos_init)
-
 
     # convolution kerel
     H, n_hops = make_kernel(D=movement_std^2, h=spatial_resolution, precision=precision)

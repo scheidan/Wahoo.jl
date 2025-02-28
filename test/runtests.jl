@@ -114,6 +114,22 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         # a crude check to see if results have changed
         @test sum(abs2, res.pos_filter) ≈ 5.656419f0
         @test sum(abs2, res.pos_smoother) ≈ 7.3226733f0
+
+        # Test for mismatched inputs
+        @test_throws ErrorException track(pos_init = p0, bathymetry = bathymetry_map,
+                                          tsave = tsave,
+                                          spatial_resolution = h, movement_std = movement_std,
+                                          observations = [depth_signals],
+                                          observation_models = [p_obs_depth, p_obs_acoustic],
+                                          sensor_positions = [nothing])
+
+        @test_throws ErrorException track(pos_init = p0[1:5, 1:20], bathymetry = bathymetry_map,
+                                          tsave = tsave,
+                                          spatial_resolution = h, movement_std = movement_std,
+                                          observations = [depth_signals],
+                                          observation_models = [p_obs_depth, p_obs_acoustic],
+                                          sensor_positions = [nothing])
+
     end
 
 
