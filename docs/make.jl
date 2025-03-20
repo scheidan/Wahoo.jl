@@ -7,6 +7,7 @@ makedocs(;
     modules=[Wahoo],
     authors="Andreas Scheidegger",
     sitename="Wahoo.jl",
+    checkdocs=:exports,
     format=Documenter.HTML(;
         canonical="https://scheidan.github.io/Wahoo.jl",
         edit_link="main",
