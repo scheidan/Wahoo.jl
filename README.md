@@ -40,10 +40,19 @@ GeoArrays.bbox(bathymetry_map)           # shows coordinates of corners
 # -- depth observations
 
 # define likelihood function
-function p_obs_depth(signals, t, depth::Number, dist::Number)
-	# We are lazy and using a predefined function here.
-    Wahoo.p_depth_exponential(signals[t], depth, dist)
+#
+# we assume the fish tends to be close to the seabed:
+function p_obs_depth_exponential(signal, t, waterdepth, dist; scale=30f0)
+    signal = signals[t]
+    if signal > waterdepth         # water is too shallow
+        return zero(waterdepth)
+    else
+        # exponential
+        Z = 1 - exp(-waterdepth/scale) # normalisation due to truncation
+        exp(-(waterdepth - signal)/scale)/(scale * Z)
+    end
 end
+
 
 # read signals
 depth_signals = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', header=true)[1][:,2]
@@ -52,6 +61,7 @@ depth_signals = readdlm(joinpath(pathdata, "depth_observations.csv"), ',', heade
 # -- acoustic observations
 
 # define likelihood function
+# here we use a function provided by Wahoo:
 function p_obs_acoustic(signals, t::Int, depth::Number, distance::Number)
     Wahoo.p_acoustic_sigmoid(signals[t], depth, distance)
 end
@@ -93,14 +103,14 @@ res = track(pos_init = p0, bathymetry = bathymetry_map,
             spatial_resolution = spatial_resolution,
             movement_std = movement_std,
             observations = [depth_signals, acoustic_obs...],
-            observation_models = [p_obs_depth, acoustic_obs_models...],
+            observation_models = [p_obs_depth_exponential, acoustic_obs_models...],
             sensor_positions = [nothing, acoustic_pos...],
-			n_trajectories = 2);
+            n_trajectories = 2);
 
 # Resulting probabilities
 # Array{Float32, 4}: Ny × Nx × 1 × time
-res.pos_filter       # Prob(s_t | y_{1...t})
 res.pos_smoother     # Prob(s_t | y_{1...T})
+res.pos_filter       # Prob(s_t | y_{1...t}), only if `save_filter = true` was used
 res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
 res.trajectories     # Vector of trajectories sampled from Prob(s_{1...T} | y_{1...T})
 res.log_p            # Prob(y_t)
