@@ -42,7 +42,7 @@ GeoArrays.bbox(bathymetry_map)           # shows coordinates of corners
 # define likelihood function
 #
 # we assume the fish tends to be close to the seabed:
-function p_obs_depth_exponential(signal, t, waterdepth, dist; scale=30f0)
+function p_obs_depth_exponential(signals, t, waterdepth, dist; scale=30f0)
     signal = signals[t]
     if signal > waterdepth         # water is too shallow
         return zero(waterdepth)
