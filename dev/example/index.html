@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Example · Wahoo.jl</title><meta name="title" content="Example · Wahoo.jl"/><meta property="og:title" content="Example · Wahoo.jl"/><meta property="twitter:title" content="Example · Wahoo.jl"/><meta name="description" content="Documentation for Wahoo.jl."/><meta property="og:description" content="Documentation for Wahoo.jl."/><meta property="twitter:description" content="Documentation for Wahoo.jl."/><meta property="og:url" content="https://scheidan.github.io/Wahoo.jl/example/"/><meta property="twitter:url" content="https://scheidan.github.io/Wahoo.jl/example/"/><link rel="canonical" href="https://scheidan.github.io/Wahoo.jl/example/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">Wahoo.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../manual/">Manual</a></li><li class="is-active"><a class="tocitem" href>Example</a></li><li><a class="tocitem" href="../api/">API</a></li><li><a class="tocitem" href="../internal/">Internals</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Example</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Example</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/scheidan/Wahoo.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/scheidan/Wahoo.jl/blob/main/docs/src/example.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Example"><a class="docs-heading-anchor" href="#Example">Example</a><a id="Example-1"></a><a class="docs-heading-anchor-permalink" href="#Example" title="Permalink"></a></h1><p>The following example uses example data that come with <code>Wahoo.jl</code>.</p><pre><code class="language-julia hljs">using Wahoo
+
+import GeoArrays
+using DelimitedFiles: readdlm
+
+# This is optional. If *both* packages are imported,
+# some computations use the GPU. Otherwise, the CPU is used for everything.
+import CUDA
+import cuDNN</code></pre><h3 id="1)-Bathymetry"><a class="docs-heading-anchor" href="#1)-Bathymetry">1) Bathymetry</a><a id="1)-Bathymetry-1"></a><a class="docs-heading-anchor-permalink" href="#1)-Bathymetry" title="Permalink"></a></h3><p>Load the bathymetry map which provides depth information for each grid cell.</p><pre><code class="language-julia hljs">pathdata = joinpath(pkgdir(Wahoo), &quot;example_data&quot;)
+bathymetry_map = GeoArrays.read(joinpath(pathdata, &quot;bathymetry_200m.tif&quot;))
+GeoArrays.bbox(bathymetry_map)</code></pre><h3 id="2)-Depth-observations"><a class="docs-heading-anchor" href="#2)-Depth-observations">2) Depth observations</a><a id="2)-Depth-observations-1"></a><a class="docs-heading-anchor-permalink" href="#2)-Depth-observations" title="Permalink"></a></h3><p>Read the depth measurements and define the exponential likelihood model. This model implies the fish is more likely close to the seabed.</p><pre><code class="language-julia hljs"># read depth signals
+depth_signals = readdlm(joinpath(pathdata, &quot;depth_observations.csv&quot;), &#39;,&#39;, header=true)[1][:,2]
+
+# define likelihood
+function p_obs_depth_exponential(signals, t, waterdepth, dist; scale=30f0)
+    signal = signals[t]
+    if signal &gt; waterdepth         # water is too shallow
+        return zero(waterdepth)
+    else
+        # exponential
+        Z = 1 - exp(-waterdepth/scale) # normalisation due to truncation
+        exp(-(waterdepth - signal)/scale)/(scale * Z)
+    end
+end</code></pre><h3 id="3)-Acoustic-observations"><a class="docs-heading-anchor" href="#3)-Acoustic-observations">3) Acoustic observations</a><a id="3)-Acoustic-observations-1"></a><a class="docs-heading-anchor-permalink" href="#3)-Acoustic-observations" title="Permalink"></a></h3><p>Load acoustic detection data and specify the probability model for acoustic signals given the distance.</p><pre><code class="language-julia hljs"># read acoustic signals
+acoustic_signals = readdlm(joinpath(pathdata, &quot;acoustic_observations.csv&quot;), &#39;,&#39;, header=true)[1][:,2:3]
+acoustic_signals = Int.(acoustic_signals&#39;)
+acoustic_obs = [acoustic_signals[1,:], acoustic_signals[2,:]]
+
+# read sensor positions
+moorings = readdlm(joinpath(pathdata, &quot;acoustic_moorings.csv&quot;), &#39;,&#39;, header=true)[1]
+acoustic_pos = tuple.(moorings[:,2], moorings[:,3])
+
+# define likelihood
+function p_obs_acoustic(signals, t::Int, depth::Number, distance::Number)
+    Wahoo.p_acoustic_sigmoid(signals[t], depth, distance)
+end</code></pre><h3 id="4)-Define-parameters"><a class="docs-heading-anchor" href="#4)-Define-parameters">4) Define parameters</a><a id="4)-Define-parameters-1"></a><a class="docs-heading-anchor-permalink" href="#4)-Define-parameters" title="Permalink"></a></h3><p>We define initial distribution of the fish location and configures the model parameters such as time steps, movement capabilities of the fish, and spatial resolution of the bathymetry.</p><pre><code class="language-julia hljs">
+# initial values: Matrix{Float64}
+p0 = zeros(size(bathymetry_map)[1], size(bathymetry_map)[2])
+idx = GeoArrays.indices(bathymetry_map, (709757.111649658, 6.26772603565296e6)) # last known location of the fish
+p0[idx] = 1
+
+tsave = 1:2:720             # time steps to save
+movement_std = 100          # standard deviation of the fish movement for one time step [m]
+spatial_resolution = 200    # spatial resolution [m]</code></pre><h3 id="5)-Run-inference"><a class="docs-heading-anchor" href="#5)-Run-inference">5) Run inference</a><a id="5)-Run-inference-1"></a><a class="docs-heading-anchor-permalink" href="#5)-Run-inference" title="Permalink"></a></h3><p>Finally, we run the model inference combine all observations and assumptions.</p><pre><code class="language-julia hljs">res = track(pos_init = p0, bathymetry = bathymetry_map,
+            tsave = tsave,
+            spatial_resolution = spatial_resolution,
+            movement_std = movement_std,
+            observations = [depth_signals, acoustic_obs...],
+            observation_models = [p_obs_depth_exponential, acoustic_obs_models...],
+            sensor_positions = [nothing, acoustic_pos...],
+            n_trajectories = 2)
+
+# Resulting probabilities
+# Array{Float32, 4}: Ny × Nx × 1 × time
+res.pos_smoother     # Prob(s_t | y_{1...T})
+res.pos_filter       # Prob(s_t | y_{1...t}), only if `save_filter = true` was used
+res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
+res.trajectories     # Vector of trajectories sampled from Prob(s_{1...T} | y_{1...T})
+res.log_p            # Prob(y_t)
+res.tsave            # time points</code></pre><p>The result of the smoother <code>res.pos_smoother</code> can be visualized:</p><img src="../assets/smoothing_animated.gif" style="width: 75%; height: auto;" /><p>Note, the code for visualization is not part of Wahoo.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../manual/">« Manual</a><a class="docs-footer-nextpage" href="../api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.11.4 on <span class="colophon-date" title="Monday 2 June 2025 10:08">Monday 2 June 2025</span>. Using Julia version 1.11.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
