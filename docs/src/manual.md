@@ -44,7 +44,7 @@ Julia.
 ### HDF5
 
 [HDF5](https://en.wikipedia.org/wiki/Hierarchical_Data_Format) is a generic format for array like data that can be read from
-most languages. The function below export the result of `track` as
+most languages. The function below exports the result of `track` as
 hdf5. Note, you must install `HDF5.jl` additionally to `Wahoo`.
 
 ```Julia
@@ -92,8 +92,8 @@ end
 
 ##### Read HDF5 with Python
 
-The code below give an example who the data could be read with
-Python. Note, the order of the indices differ.
+The code below gives an example of how the data can be read with
+Python. Note, the order of the indices differs.
 
 ```python
 # /// script
