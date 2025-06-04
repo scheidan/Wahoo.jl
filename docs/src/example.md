@@ -66,12 +66,14 @@ acoustic_pos = tuple.(moorings[:,2], moorings[:,3])
 function p_obs_acoustic(signals, t::Int, depth::Number, distance::Number)
     Wahoo.p_acoustic_sigmoid(signals[t], depth, distance)
 end
+
+acoustic_obs_models = [p_obs_acoustic, p_obs_acoustic]
 ```
 
 
 ### 4) Define parameters
 
-We define initial distribution of the fish location and configures the model parameters
+We define the initial distribution of the fish location and configure the model parameters
 such as time steps, movement capabilities of the fish, and spatial
 resolution of the bathymetry.
 
@@ -89,7 +91,7 @@ spatial_resolution = 200    # spatial resolution [m]
 
 ### 5) Run inference
 
-Finally, we run the model inference combine all observations and
+Finally, we run the model inference, combining all observations and
 assumptions.
 
 ```julia
