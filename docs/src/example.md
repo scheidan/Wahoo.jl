@@ -106,8 +106,8 @@ res = track(pos_init = p0, bathymetry = bathymetry_map,
 
 # Resulting probabilities
 # Array{Float32, 4}: Ny × Nx × 1 × time
-res.pos_smoother     # Prob(s_t | y_{1...T})
-res.pos_filter       # Prob(s_t | y_{1...t}), only if `save_filter = true` was used
+res.pos_smoother     # Prob(s_t | y_{1...T}), only if `smoother = true` was used
+res.pos_filter       # Prob(s_t | y_{1...t}), only if `filter = true`
 res.residence_dist   # 1/T Σ Prob(s_t | y_{1...T})
 res.trajectories     # Vector of trajectories sampled from Prob(s_{1...T} | y_{1...T})
 res.log_p            # Prob(y_t)

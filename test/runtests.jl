@@ -82,7 +82,7 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
                     observations = [depth_signals, acoustic_obs...],
                     observation_models = [p_obs_depth, acoustic_obs_models...],
                     sensor_positions = [nothing, acoustic_pos...],
-                    save_filter = true,
+                    filter = true,
                     n_trajectories = 2,
                     precision = Float32)
 

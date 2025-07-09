@@ -17,7 +17,8 @@ track(;pos_init::Matrix,
        sensor_positions::Vector,
        spatial_resolution,
        movement_std,
-       save_filter::Bool = false,
+       smoother::Bool = true,
+       filter::Bool = false,
        n_trajectories::Int = 0,
        show_progressbar::Bool = !is_logging(stderr),
        precision = Float32)
@@ -35,8 +36,9 @@ Infers the location of the animal based on a diffusion model and smoothing.
 - `observations`: Vector holding all observations. Each element contains the observation of a separate sensor.
 - `observation_models::Vector{Function}`: Vector containing the observation model for each sensor.
 - `sensor_positions`: Vector of tuples of coordinates or `nothing`, i.e. `Vector{Union{Nothing, Tuple{Real, Real}}}`
-- `save_filter`: if `true` the probabilities from the filter run are returned.
-- `n_trajectories=0`: Number of trajectories to sample
+- `smoother = true`: if `true` the probabilities from the smoother run are returned.
+- `filter = false`: if `true` the probabilities from the filter run are returned.
+- `n_trajectories = 0`: Number of trajectories to sample
 - `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
 - `precision = Float32`: numerical floating point type used for computations
 
@@ -46,12 +48,16 @@ the elements at the same position in the Vectors refer to the same sensor.
 # Return
 
 A named tuple with the following elements:
-- `pos_smoother`: Smoothed probability distribution of the fish positions for all timesteps in `tsave`.
-- `residence_dist`: Residence distribution.
-- `trajectories`: Sampled trajectories if `n_trajectories` > 0, otherwise `nothing`.
 - `log_p`: Log probability of the observations.
 - `tsave`: Vector of time steps at which the results are saved.
-- `pos_filter`: Filtered  probability distribution of the fish positions, included if `save_filter = true`.
+- `trajectories`: Sampled trajectories if `n_trajectories` > 0, otherwise `nothing`.
+
+Additionally, if `smoother = true`:
+- `pos_smoother`: Smoothed probability distribution of the fish positions for all timesteps in `tsave`.
+- `residence_dist`: Residence distribution.
+
+Additionally, if `filter = true`:
+- `pos_filter`: Filtered  probability distribution of the fish positions, included if `filter = true`.
 
 """
 function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
@@ -61,7 +67,8 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                tsave::AbstractVector = 1:100,
                spatial_resolution,
                movement_std,
-               save_filter::Bool=false,
+               filter::Bool=false,
+               smoother::Bool=true,
                n_trajectories::Int=0,
                show_progressbar::Bool = !is_logging(stderr),
                precision=Float32)
@@ -105,15 +112,16 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                                    hops_per_step = n_hops, tsave = tsave,
                                    show_progressbar = show_progressbar)
 
-
-    pos_smoother, residence_dist = run_smoother(pos_filter, H,
-                                                bathymetry,
-                                                observations,
-                                                observation_models,
-                                                distances;
-                                                hops_per_step = n_hops,
-                                                tsave = tsave,
-                                                show_progressbar = show_progressbar)
+    if smoother
+        pos_smoother, residence_dist = run_smoother(pos_filter, H,
+                                                    bathymetry,
+                                                    observations,
+                                                    observation_models,
+                                                    distances;
+                                                    hops_per_step = n_hops,
+                                                    tsave = tsave,
+                                                    show_progressbar = show_progressbar)
+    end
 
     if n_trajectories > 0
         trajectories =  sample_trajectories(pos_filter, H,
@@ -129,21 +137,20 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
         trajectories = nothing
     end
 
-    if save_filter
-        return (pos_smoother = Array(pos_smoother),
-                pos_filter = Array(pos_filter),
-                residence_dist = Array(residence_dist),
-                trajectories = trajectories,
-                log_p = Array(log_p),
-                tsave = tsave)
-    else
-        return (pos_smoother = Array(pos_smoother),
-                residence_dist = Array(residence_dist),
-                trajectories = trajectories,
-                log_p = Array(log_p),
-                tsave = tsave)
+
+    results =  (log_p = Array(log_p),
+                tsave = tsave,
+                trajectories = trajectories)
+    if smoother
+        results = merge(results, (pos_smoother = Array(pos_smoother),
+                                  residence_dist = Array(residence_dist)))
     end
 
+    if filter
+        results = merge(results, (pos_filter = Array(pos_filter),))
+    end
+
+    return results
 end
 
 # Little helper:
