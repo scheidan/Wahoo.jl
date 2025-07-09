@@ -29,4 +29,4 @@ Madsen. 2009. “Geolocating Fish Using Hidden Markov Models and Data Storage Ta
 
 The example bathymetry data is derived from the following survey:
 
-Howe JA, Anderton R, Arosio R, et al. The seabed geomorphology and geological structure of the Firth of Lorn, western Scotland, UK, as revealed by multibeam echo-sounder survey. Earth and Environmental Science Transactions of the Royal Society of Edinburgh. 2014;105(4):273-284. doi:10.1017/S1755691015000146
+Howe JA, Anderton R, Arosio R, et al. The seabed geomorphology and geological structure of the Firth of Lorn, western Scotland, UK, as revealed by multibeam echo-sounder survey. Earth and Environmental Science Transactions of the Royal Society of Edinburgh. 2014;105(4):273-284. https://doi.org/10.1017/S1755691015000146
