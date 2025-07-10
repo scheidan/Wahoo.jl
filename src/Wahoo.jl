@@ -87,7 +87,7 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
     nx, ny = size(pos_init)
 
     # convolution kerel
-    H, n_hops = make_kernel(D=movement_std^2, h=spatial_resolution, precision=precision)
+    H, n_hops = make_kernel(D = movement_std^2/2, h = spatial_resolution, precision = precision)
 
     # precompute distances to sensors
     distances = build_distances(sensor_positions, bathymetry, spatial_resolution)
