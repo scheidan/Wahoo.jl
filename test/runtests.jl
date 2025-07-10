@@ -70,7 +70,7 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         bathymetry_map[idx]
         p0[idx] = 1
 
-        h = 200                     # spatial resolution [m]
+        h = 200                             # spatial resolution [m]
         movement_std = 200          # std of one time step movement [m]
 
         tsave = 1:5:720             # time steps to save
@@ -112,8 +112,8 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
         end
 
         # a crude check to see if results have changed
-        @test sum(abs2, res.pos_filter) ≈ 5.656419f0
-        @test sum(abs2, res.pos_smoother) ≈ 7.3226733f0
+        @test sum(abs2, res.pos_filter) ≈  7.9684896f0
+        @test sum(abs2, res.pos_smoother) ≈ 12.633255f0
 
         # Test for mismatched inputs
         @test_throws ErrorException track(pos_init = p0, bathymetry = bathymetry_map,

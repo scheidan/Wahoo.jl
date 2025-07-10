@@ -85,7 +85,7 @@ idx = GeoArrays.indices(bathymetry_map, (709757.111649658, 6.26772603565296e6)) 
 p0[idx] = 1
 
 tsave = 1:2:720             # time steps to save
-movement_std = 100          # standard deviation of the fish movement for one time step [m]
+movement_std = 140          # standard deviation of the fish movement for one time step [m]
 spatial_resolution = 200    # spatial resolution [m]
 ```
 
