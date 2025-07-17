@@ -6,7 +6,7 @@ import GeoArrays
 import ProgressMeter
 
 """
-Compute convolution kernel and the required number of hope per time steps
+Compute convolution kernel and the required number of hops per time steps
 
 D: diffusion coefficient
 h: spatial resolution

@@ -8,12 +8,12 @@
 `Wahoo` is a Julia package for tracking the movement of marine animals
 using probabilistic state-space models. The inference is based on a
 spatial discretization and employs a convolution-based algorithm
-instead of particle filters. This allows `Wahoo` to perform well even in
-areas with very rugged bathymetry.
+instead of particle filters. This allows `Wahoo` to perform well even 
+for benthic animals in areas with very rugged bathymetry.
 
 
 
-For more information please see the
+For more information, please see the
 [documentation](https://scheidan.github.io/Wahoo.jl/dev/).
 
 
