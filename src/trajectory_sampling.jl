@@ -2,7 +2,7 @@
 import StatsBase
 
 """
-If `dist` is a array of probabilities, sample an element and returns the first two indices.
+If `dist` is a array of probabilities, sample an element and return the first two indices.
 """
 function sample_index(dist::Array)
      # Sample a linear index with weights from the flattened matrix
@@ -22,7 +22,7 @@ end
 
 
 """
-Sample random trajectories form the joint distribution Prob(s_{1...T} | y_{1...T}).
+Sample random trajectories from the joint distribution Prob(s_{1...T} | y_{1...T}).
 """
 function sample_trajectories(pos_filter, H,
                              bathymetry,
