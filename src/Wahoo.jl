@@ -28,19 +28,19 @@ Infers the location of the animal based on a diffusion model and smoothing.
 
 # Keyword Arguments
 
-- `pos_init::Matrix`: Initial probability distribution of the fish position
+- `pos_init::Matrix`: Initial probability distribution of the fish position.
 - `tsave::AbstractVector`: Time steps at which the probability map is saved.
-- `bathymetry`: Bathymetric data as `GeoArray`
+- `bathymetry`: Bathymetric data as `GeoArray`.
 - `spatial_resolution`: the spatial resolution [m] of the `bathymetry`.
-- `movement_std`: Standard deviation of the fish movement within one time step [m]
+- `movement_std`: Standard deviation of the fish movement within one time step [m].
 - `observations`: Vector holding all observations. Each element contains the observation of a separate sensor.
 - `observation_models::Vector{Function}`: Vector containing the observation model for each sensor.
-- `sensor_positions`: Vector of tuples of coordinates or `nothing`, i.e. `Vector{Union{Nothing, Tuple{Real, Real}}}`
+- `sensor_positions`: Vector of tuples of coordinates or `nothing`, i.e. `Vector{Union{Nothing, Tuple{Real, Real}}}`.
 - `smoother = true`: if `true` the probabilities from the smoother run are returned.
 - `filter = false`: if `true` the probabilities from the filter run are returned.
-- `n_trajectories = 0`: Number of trajectories to sample
+- `n_trajectories = 0`: Number of trajectories to sample.
 - `show_progressbar = !is_logging(stderr)`: defaults to `true` for interactive use.
-- `precision = Float32`: numerical floating point type used for computations
+- `precision = Float32`: numerical floating point type used for computations.
 
 Note, the elements of the vectors `observations`, `observation_models`, and `sensor_positions` must be sorted in the same way, i.e.
 the elements at the same position in the Vectors refer to the same sensor.
