@@ -5,7 +5,7 @@ Documentation for [Wahoo](https://github.com/scheidan/Wahoo.jl).
 
 
 
-# Wahoo.jl
+# Wahoo.jl: Animal Geolocation with Convolution Algorithms
 
 Wahoo is a package designed for tracking the movement of marine
 animals using probabilistic state-space models.

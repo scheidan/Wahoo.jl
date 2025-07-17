@@ -1,14 +1,15 @@
-# Wahoo.jl
+# Wahoo.jl: Animal Geolocation with Convolution Algorithms
 
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://scheidan.github.io/Wahoo.jl/dev/)
 [![Build Status](https://github.com/scheidan/Wahoo.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/scheidan/Wahoo.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/scheidan/Wahoo.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/scheidan/Wahoo.jl)
 
 
-`Wahoo` is a Julia package designed for tracking the movement of marine
-animals using probabilistic state-space models. The inference is based
-on a discretization of space and does not use particle filters. This
- makes `Wahoo` work well even when the bathymetry is very rugged.
+`Wahoo` is a Julia package for tracking the movement of marine animals
+using probabilistic state-space models. The inference is based on a
+spatial discretization and employs a convolution-based algorithm
+instead of particle filters. This allows `Wahoo` to perform well even in
+areas with very rugged bathymetry.
 
 
 
