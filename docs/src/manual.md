@@ -176,7 +176,3 @@ function export_jld2(res, file; bathymetry, spatial_resolution,
     file
 end
 ```
-
-## Visualizations
-
-todo
