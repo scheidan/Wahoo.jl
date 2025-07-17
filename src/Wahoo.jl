@@ -48,16 +48,17 @@ the elements at the same position in the Vectors refer to the same sensor.
 # Return
 
 A named tuple with the following elements:
-- `log_p`: Log probability of the observations, log p(y_{1...T}).
+- `log_p`: Log probability of the observations, ``\\log p(\\mathbf{y}_{1:T})``.
 - `tsave`: Vector of time steps at which the results are saved.
 - `trajectories`: Sampled trajectories if `n_trajectories` > 0, otherwise `nothing`.
 
 Additionally, if `smoother = true`:
-- `pos_smoother`: Prob(s_t | y_{1...T}), the smoothed probability distribution of the fish positions for all timesteps in `tsave`.
-- `residence_dist`: Residence distribution, 1/T Σ Prob(s_t | y_{1...T}).
+- `pos_smoother`: ``\\Pr(\\mathbf{s}_t \\mid \\mathbf{y}_{1:T})``, the smoothed probability distribution of the fish positions for all timesteps in `tsave`.
+- `residence_dist`: Residence distribution, ``\\frac{1}{T}\\sum_{t=1}^{T}\\Pr(\\mathbf{s}_t\\mid \\mathbf{y}_{1:T})``.
 
 Additionally, if `filter = true`:
-- `pos_filter`: Prob(s_t | y_{1...t}), the filtered probability distribution of the fish positions.
+- `pos_filter`: ``\\Pr(\\mathbf{s}_t \\mid \\mathbf{y}_{1:t})``, the filtered probability distribution of the fish positions.
+
 
 """
 function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
