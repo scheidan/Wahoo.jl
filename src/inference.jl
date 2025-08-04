@@ -1,6 +1,4 @@
 
-export track
-
 import NNlib
 import GeoArrays
 import ProgressMeter
