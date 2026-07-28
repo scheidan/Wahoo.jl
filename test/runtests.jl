@@ -31,6 +31,46 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
     end
 
 
+    @testset "diffusion stencil" begin
+        H, _ = Wahoo.make_kernel(D=100^2/2, h=200, precision=Float32)
+        for (dims, hops) in (((11, 13), 1), ((11, 13), 4), ((317, 317), 1))
+            input = rand(Float32, dims..., 1, 1)
+            expected = copy(input)
+            for _ in 1:hops
+                expected = Wahoo.NNlib.conv(expected, H, pad=1)
+            end
+            result, _ = Wahoo.diffuse!(copy(input), similar(input), H, hops)
+            @test result ≈ expected rtol=5eps(Float32)
+        end
+    end
+
+
+    @testset "local trajectory transition" begin
+        H, _ = Wahoo.make_kernel(D=100^2/2, h=200, precision=Float32)
+        pos_filter = rand(Float32, 11, 13)
+        bathymetry = ones(Float32, size(pos_filter))
+        bathymetry[4,5] = -1
+
+        for hops in (1, 2, 4), (y, x) in ((1,1), (6,7), (11,13))
+            expected = zeros(Float32, 11, 13, 1, 1)
+            expected[y,x,1,1] = 1
+            for _ in 1:hops
+                expected = Wahoo.NNlib.conv(expected, H, pad=1)
+            end
+            expected .= ifelse.(bathymetry .< 0, 0, expected)
+            expected[:,:,1,1] .*= pos_filter
+
+            state = Wahoo.make_transition_state(Float32, hops)
+            n = Wahoo.backward_weights!(state, y, x, pos_filter, bathymetry, H, hops)
+            result = zeros(Float32, size(pos_filter))
+            for i in 1:n
+                result[state.ys[i],state.xs[i]] = state.weights[i]
+            end
+            @test result ≈ expected[:,:,1,1] rtol=5eps(Float32)
+        end
+    end
+
+
     @testset "Integration tests CPU" begin
 
 

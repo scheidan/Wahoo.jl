@@ -120,6 +120,11 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                                    hops_per_step = n_hops, tsave = tsave,
                                    show_progressbar = show_progressbar)
 
+    trajectory_sampler = smoother && n_trajectories > 0 ?
+        initialize_trajectory_sampler(pos_filter, H, bathymetry;
+                                      tsave, n_trajectories, hops_per_step=n_hops,
+                                      show_progressbar) : nothing
+
     if smoother
         pos_smoother, residence_dist = run_smoother(pos_filter, H,
                                                     bathymetry,
@@ -128,19 +133,24 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                                                     distances;
                                                     hops_per_step = n_hops,
                                                     tsave = tsave,
-                                                    show_progressbar = show_progressbar)
+                                                    show_progressbar = show_progressbar,
+                                                    trajectory_sampler)
     end
 
     if n_trajectories > 0
-        trajectories =  sample_trajectories(pos_filter, H,
-                                            bathymetry,
-                                            observations,
-                                            observation_models,
-                                            distances;
-                                            tsave = tsave,
-                                            n_trajectories =  n_trajectories,
-                                            hops_per_step = n_hops,
-                                            show_progressbar = show_progressbar)
+        trajectories = if smoother
+            trajectory_sampler.trajectories
+        else
+            sample_trajectories(pos_filter, H,
+                                bathymetry,
+                                observations,
+                                observation_models,
+                                distances;
+                                tsave = tsave,
+                                n_trajectories = n_trajectories,
+                                hops_per_step = n_hops,
+                                show_progressbar = show_progressbar)
+        end
     else
         trajectories = nothing
     end

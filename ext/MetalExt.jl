@@ -33,6 +33,36 @@ function move_to_GPU(H, bathymetry, observations, dist_acoustic, precision)
 end
 
 
+function Wahoo.diffuse!(src::MtlArray, dest::MtlArray, H::MtlArray, hops)
+    threads = (16, 16)
+    groups = (cld(size(src, 1), threads[1]), cld(size(src, 2), threads[2]))
+    for _ in 1:hops
+        Metal.@metal threads=threads groups=groups kernel_diffuse!(dest, src, H)
+        src, dest = dest, src
+    end
+    return src, dest
+end
+
+function kernel_diffuse!(dest, src, H)
+    pos = Metal.thread_position_in_grid()
+    i = Int32(pos.x)
+    j = Int32(pos.y)
+    ny = Int32(size(src, 1))
+    nx = Int32(size(src, 2))
+    if i <= ny && j <= nx
+        @inbounds begin
+            v = H[2,2,1,1] * src[i,j,1,1]
+            i > 1 && (v += H[1,2,1,1] * src[i-1,j,1,1])
+            i < ny && (v += H[3,2,1,1] * src[i+1,j,1,1])
+            j > 1 && (v += H[2,1,1,1] * src[i,j-1,1,1])
+            j < nx && (v += H[2,3,1,1] * src[i,j+1,1,1])
+            dest[i,j,1,1] = v
+        end
+    end
+    nothing
+end
+
+
 # ----
 
 """

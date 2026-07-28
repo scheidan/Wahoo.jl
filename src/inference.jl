@@ -37,16 +37,57 @@ Maps time step to the index of `pos_filter` and `pos_smoother`
 time2index(t, tsave) = findfirst(==(t), tsave)
 
 
+function diffuse!(src, dest, H, hops)
+    for _ in 1:hops
+        src = NNlib.conv(src, H, pad=1)
+    end
+    return src, dest
+end
+
+function diffuse_step!(src, dest, H)
+    ny, nx = size(src, 1), size(src, 2)
+    if length(src) < 100_000 || Threads.nthreads() == 1
+        @inbounds for j in 1:nx, i in 1:ny
+            v = H[2,2,1,1] * src[i,j,1,1]
+            i > 1 && (v += H[1,2,1,1] * src[i-1,j,1,1])
+            i < ny && (v += H[3,2,1,1] * src[i+1,j,1,1])
+            j > 1 && (v += H[2,1,1,1] * src[i,j-1,1,1])
+            j < nx && (v += H[2,3,1,1] * src[i,j+1,1,1])
+            dest[i,j,1,1] = v
+        end
+    else
+        Threads.@threads for j in 1:nx
+            @inbounds for i in 1:ny
+                v = H[2,2,1,1] * src[i,j,1,1]
+                i > 1 && (v += H[1,2,1,1] * src[i-1,j,1,1])
+                i < ny && (v += H[3,2,1,1] * src[i+1,j,1,1])
+                j > 1 && (v += H[2,1,1,1] * src[i,j-1,1,1])
+                j < nx && (v += H[2,3,1,1] * src[i,j+1,1,1])
+                dest[i,j,1,1] = v
+            end
+        end
+    end
+end
+
+function diffuse!(src::Array, dest::Array, H::Array, hops)
+    for _ in 1:hops
+        diffuse_step!(src, dest, H)
+        src, dest = dest, src
+    end
+    return src, dest
+end
+
+
 # ---
 # filter algorithm
 
-function run_filter(pos_init, H,
-                    bathymetry,
-                    observations, observation_models,
-                    distances;
-                    hops_per_step,
-                    tsave=1:100,
-                    show_progressbar)
+@views function run_filter(pos_init, H,
+                           bathymetry,
+                           observations, observation_models,
+                           distances;
+                           hops_per_step,
+                           tsave=1:100,
+                           show_progressbar)
 
     tmax = maximum(tsave)
 
@@ -56,6 +97,7 @@ function run_filter(pos_init, H,
     pos = similar(H, nx, ny, 1, length(tsave))
 
     pos_tmp = similar(H, nx, ny, 1, 1)
+    pos_scratch = similar(pos_tmp)
     pos_tmp[:,:,1,1] = pos_init
     pos[:,:,1,1] .= pos_tmp[:,:,1,1]
 
@@ -69,9 +111,7 @@ function run_filter(pos_init, H,
     for t in 2:tmax
 
         # --- solve Fokker-Plank
-        for k in 1:hops_per_step
-            pos_tmp[:,:,1,1] = NNlib.conv(pos_tmp[:,:,1:1,1:1], H, pad=1)
-        end
+        pos_tmp, pos_scratch = diffuse!(pos_tmp, pos_scratch, H, hops_per_step)
 
         # you can't be on land (negative bathymetry)
         pos_tmp .= ifelse.(bathymetry .< 0, 0, pos_tmp)
@@ -122,24 +162,25 @@ function divzero(a, b)
 end
 
 
-function run_smoother(pos_filter, H,
-                      bathymetry,
-                      observations, observation_models,
-                      distances;
-                      hops_per_step,
-                      tsave=1:100,
-                      show_progressbar)
+@views function run_smoother(pos_filter, H,
+                             bathymetry,
+                             observations, observation_models,
+                             distances;
+                             hops_per_step,
+                             tsave=1:100,
+                             show_progressbar,
+                             trajectory_sampler=nothing)
 
-    ext = Base.get_extension(@__MODULE__, :CUDAExt)
-
-    tmax = maximum(tsave)
     n_tsave = length(tsave)
 
     nx, ny = size(pos_filter)[1:2]
 
     # hold smoothed results, P(s_t | y_{1:T})
     pos_smoother = similar(pos_filter)
-    pos_smoother_tmp = similar(pos_filter, nx, ny, 1)
+    pos_smoother_tmp = similar(pos_filter, nx, ny, 1, 1)
+    pos_smoother_scratch = similar(pos_smoother_tmp)
+    pos_filter_jump_tmp = similar(pos_smoother_tmp)
+    pos_filter_jump_scratch = similar(pos_smoother_tmp)
 
     pos_smoother_tmp[:,:,1] .= pos_smoother[:,:,1,end] .= pos_filter[:,:,1,end]
 
@@ -162,20 +203,19 @@ function run_smoother(pos_filter, H,
         pos_filter_jump = similar(pos_filter, nx, ny, 1, length(tsave_jump))          # P(s_t | y_{1:t})
         pos_filter_jump_no_obs = similar(pos_filter, nx, ny, 1, length(tsave_jump))   # P(s_{t+1} | y_{1:t})
 
-        pos_filter_jump[:,:,1,1] .= pos_filter_jump_no_obs[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
+        pos_filter_jump[:,:,1,1] .= pos_filter_jump_no_obs[:,:,1,1] .= pos_filter[:,:,1,j]
 
 
         for (i,t) in enumerate(tsave_jump[1:(end-1)])
 
-            pos_filter_jump[:,:,1,i+1] .= pos_filter_jump[:,:,1,i]
-
             # --- solve Fokker-Plank
-            for k in 1:hops_per_step
-                pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
-            end
+            pos_filter_jump_tmp[:,:,1,1] .= pos_filter_jump[:,:,1,i]
+            pos_filter_jump_tmp, pos_filter_jump_scratch = diffuse!(
+                pos_filter_jump_tmp, pos_filter_jump_scratch, H, hops_per_step)
+            pos_filter_jump[:,:,1,i+1] .= pos_filter_jump_tmp[:,:,1,1]
 
             # you can't be on land (negative bathymetry)
-            pos_filter_jump .= ifelse.(bathymetry .< 0, 0, pos_filter_jump)
+            pos_filter_jump[:,:,1,i+1] .= ifelse.(bathymetry .< 0, 0, pos_filter_jump[:,:,1,i+1])
 
             # --- save P(s_{t+1} | y_{1:t})
             pos_filter_jump_no_obs[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1]
@@ -195,11 +235,15 @@ function run_smoother(pos_filter, H,
 
 
         end
+        if !isnothing(trajectory_sampler)
+            sample_trajectory_block!(trajectory_sampler, pos_filter_jump, tsave_jump,
+                                     hops_per_step)
+        end
 
         # -----------
         # 2) backward smoothing
 
-        pos_smoother_tmp[:,:,1,1] .= pos_smoother[:,:,1,time2index(tsave_jump[end], tsave)]
+        pos_smoother_tmp[:,:,1,1] .= pos_smoother[:,:,1,j+1]
 
 
         for (i, t) in enumerate(reverse(tsave_jump)[2:end])
@@ -212,9 +256,8 @@ function run_smoother(pos_filter, H,
 
             # --- solve Fokker-Plank backwards
             # K = rot180(H) = H if no advections
-            for k in 1:hops_per_step
-                pos_smoother_tmp[:,:,1,1] = NNlib.conv(pos_smoother_tmp[:,:,1:1,1:1], H, pad=1)
-            end
+            pos_smoother_tmp, pos_smoother_scratch = diffuse!(
+                pos_smoother_tmp, pos_smoother_scratch, H, hops_per_step)
 
             # you can't be on land (negative bathymetry)
             pos_smoother_tmp .= ifelse.(bathymetry .< 0, 0, pos_smoother_tmp)
@@ -224,13 +267,9 @@ function run_smoother(pos_filter, H,
 
             residence_dist .+= pos_smoother_tmp[:,:,1,1]
 
-            # --- save
-            if t in tsave
-                pos_smoother[:,:,1,time2index(t, tsave)] .= pos_smoother_tmp[:,:,1,1]
-            end
-
         end
 
+        pos_smoother[:,:,1,j] .= pos_smoother_tmp[:,:,1,1]
         ProgressMeter.next!(pmeter)
 
     end
