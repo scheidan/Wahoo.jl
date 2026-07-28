@@ -1,5 +1,5 @@
 ## -------------------------------------------------------
-## This module is only loaded if CUDA.jl and cuDNN.jl are imported
+## This module is only loaded if CUDA.jl is imported
 ## -------------------------------------------------------
 
 
@@ -7,7 +7,6 @@ module CUDAExt
 
 using Wahoo
 using CUDA
-import cuDNN
 import NNlib
 
 function to32bitarray(v, precision)

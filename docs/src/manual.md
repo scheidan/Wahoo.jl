@@ -25,14 +25,19 @@ where `bathymetry_depth` is the water depth at `s_t` and `dist` is the Euclidean
 distance from `s_t` to the sensor location. Note, the function must
 accept all four arguments, even if some are not used.
 
-Note that if GPU use is planned, the function must be type-stable!
-
 
 
 ## Using GPU
 
-To use the GPU for computations, the packages `CUDA.jl` _and_ `cuDNN.jl`
-must be imported. Currently, only CUDA-compatible GPUs are supported.
+To use a GPU for computations, import either `CUDA.jl` for NVIDIA GPUs
+or `Metal.jl` for Apple Silicon GPUs.
+
+
+Note, for GPU compatibility the function of the observation models must be
+type-stable. Also make sure that floating-point literals inside the function always use `Float32`, for
+example `30f0` instead of `30.0`.
+
+
 
 
 ## Export results

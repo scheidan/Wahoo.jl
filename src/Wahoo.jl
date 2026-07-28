@@ -96,10 +96,15 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
     distances = build_distances(sensor_positions, bathymetry, spatial_resolution)
 
     # run filter
+    extensions = [
+        Base.get_extension(@__MODULE__, :CUDAExt),
+        Base.get_extension(@__MODULE__, :MetalExt),
+    ]
+    gpuext = all(isnothing.(extensions)) ? nothing : first(x for x in extensions if !isnothing(x))
 
-    cudaext = Base.get_extension(@__MODULE__, :CUDAExt)
-    if !isnothing(cudaext) # check if we have CUDA.jl loaded
-        H, bathymetry, observations, distances = cudaext.move_to_GPU(H, bathymetry, observations, distances, precision)
+    if !isnothing(gpuext) # check if we have CUDA.jl or Metal.jl loaded
+        pos_init = gpuext.to32bitarray(pos_init, precision)
+        H, bathymetry, observations, distances = gpuext.move_to_GPU(H, bathymetry, observations, distances, precision)
     else                   # use CPU
         bathymetry = precision.(bathymetry[:,:,1])
         pos_init = precision.(pos_init)
