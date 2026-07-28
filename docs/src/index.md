@@ -17,6 +17,9 @@ animals using probabilistic state-space models.
 
 # References
 
+Lavender, E., Albert, C., Scheidegger, A., 2026. Animal geolocation with convolution algorithms in Julia and R via Wahoo.jl. Methods in Ecology and Evolution 17, 497–504. https://doi.org/10.1111/2041-210x.70185
+
+
 The filter and smoother implementation is based on:
 
 Thygesen, Uffe Høgsbro, Martin Wæver Pedersen, and Henrik
