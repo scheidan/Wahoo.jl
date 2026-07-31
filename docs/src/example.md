@@ -136,7 +136,7 @@ res_hmm = track(pos_init = p0, bathymetry = bathymetry_map,
                 observation_models = [p_obs_depth_exponential, acoustic_obs_models...],
                 sensor_positions = [nothing, acoustic_pos...])
 
-res_hmm.activity_filter  # 2 × length(tsave), with rows [slow, fast]
+res_hmm.activity  # 2 × length(tsave), with rows [slow, fast]
 ```
 
 Activity at time `t` selects the movement standard deviation for the move to

@@ -204,9 +204,9 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
                         n_trajectories = 1, precision = Float32)
         @test size(hmm_res.pos_filter) == (size(bathymetry_map)[1:2]..., 1, 3)
         @test size(hmm_res.pos_smoother) == size(hmm_res.pos_filter)
-        @test size(hmm_res.activity_filter) == (2, 3)
-        @test hmm_res.activity_filter[:,1] == activity_init
-        @test all(sum(hmm_res.activity_filter, dims=1) .≈ 1)
+        @test size(hmm_res.activity) == (2, 3)
+        @test hmm_res.activity[:,1] == activity_init
+        @test all(sum(hmm_res.activity, dims=1) .≈ 1)
         @test size(hmm_res.trajectories[1]) == (2, 3)
 
         hmm_res_default = track(pos_init = p0, bathymetry = bathymetry_map,
@@ -217,7 +217,16 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
                                 sensor_positions = Any[], smoother = false,
                                 precision = Float32)
         @test !hasproperty(hmm_res_default, :pos_filter)
-        @test hmm_res_default.activity_filter[:,1] == Float32[0.5, 0.5]
+        @test hmm_res_default.activity[:,1] == Float32[0.5, 0.5]
+
+        invalid_transition_matrix = Float32[0.8 0.3; 0.3 0.7]
+        @test_throws ArgumentError track(pos_init = p0, bathymetry = bathymetry_map,
+                                         tsave = 1:1, spatial_resolution = h,
+                                         movement_std = (100, 200),
+                                         transition_matrix = invalid_transition_matrix,
+                                         observations = Any[],
+                                         observation_models = Function[],
+                                         sensor_positions = Any[])
 
         # Test for mismatched inputs
         @test_throws ErrorException track(pos_init = p0, bathymetry = bathymetry_map,

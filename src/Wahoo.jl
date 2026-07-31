@@ -41,8 +41,7 @@ Infers the location of the animal based on a diffusion model and smoothing.
   enable the activity model.
 - `transition_matrix = nothing`: Row-stochastic activity transition matrix,
   with rows denoting the previous state and columns the next state.
-- `activity_init = nothing`: Initial probabilities of the slow and fast states.
-  Defaults to `[0.5, 0.5]`.
+- `activity_init = [0.5, 0.5]`: Initial probabilities of the slow and fast states (ignored when a single movment speed is used).
 - `observations`: Vector holding all observations. Each element contains the observation of a separate sensor.
 - `observation_models::Vector{Function}`: Vector containing the observation model for each sensor.
 - `sensor_positions`: Vector of tuples of coordinates or `nothing`, i.e. `Vector{Union{Nothing, Tuple{Real, Real}}}`.
@@ -70,7 +69,7 @@ Additionally, if `filter = true`:
 - `pos_filter`: ``\\Pr(\\mathbf{s}_t \\mid \\mathbf{y}_{1:t})``, the filtered probability distribution of the fish positions.
 
 Additionally, if two movement standard deviations are provided:
-- `activity_filter`: Filtered probabilities of the slow and fast states. Rows
+- `activity`: Filtered probabilities of the slow and fast states. Rows
   correspond to `[slow, fast]` and columns to `tsave`.
 
 """
@@ -82,7 +81,7 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                spatial_resolution,
                movement_std,
                transition_matrix = nothing,
-               activity_init = nothing,
+               activity_init = [0.5, 0.5],
                filter::Bool = false,
                smoother::Bool = true,
                n_trajectories::Int = 0,
@@ -102,6 +101,7 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
 
     activity_model = !(movement_std isa Number)
     movement_std = activity_model ? movement_std : (movement_std,)
+
     kernels_and_hops = [make_kernel(D = sd^2/2, h = spatial_resolution,
                                     precision = precision) for sd in movement_std]
     H = first.(kernels_and_hops)
@@ -109,9 +109,10 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
 
     if activity_model
         transition_matrix = precision.(transition_matrix)
-        activity_init = isnothing(activity_init) ?
-            fill(one(precision)/length(movement_std), length(movement_std)) :
-            precision.(activity_init)
+        if !all(isapprox.(sum(transition_matrix, dims=2), one(precision)))
+            error("The rows of `transition_matrix` must sum to 1.")
+        end
+        activity_init = precision.(activity_init)
     else
         transition_matrix = ones(precision, 1, 1)
         activity_init = ones(precision, 1)
@@ -182,8 +183,8 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
     end
 
     if activity_model
-        activity_filter = dropdims(sum(state_filter, dims=(1, 2)), dims=(1, 2))
-        results = merge(results, (activity_filter = Array(activity_filter),))
+        activity = dropdims(sum(state_filter, dims=(1, 2)), dims=(1, 2))
+        results = merge(results, (activity = Array(activity),))
     end
 
     return results
