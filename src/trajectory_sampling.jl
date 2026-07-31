@@ -1,135 +1,97 @@
-
 import StatsBase
 
 """
-If `dist` is a array of probabilities, sample an element and return the first two indices.
+If `dist` is an array of probabilities, sample a joint position and activity.
 """
 function sample_index(dist::Array)
-     # Sample a linear index with weights from the flattened matrix
     sample_idx = StatsBase.sample(1:length(dist), StatsBase.Weights(vec(dist)))
-    y, x, _ = Tuple(CartesianIndices(dist)[sample_idx])
-    return y, x
+    y, x, a, _ = Tuple(CartesianIndices(dist)[sample_idx])
+    return y, x, a
 end
 
 
 """
-Set all values of A to zero except A[y,x] to one.
+Set all values of `A` to zero except the joint state at `(y, x, a)`.
 """
-function one_hot!(A::Array, y, x)
+function one_hot!(A::Array, y, x, a)
     A .= zero(eltype(A))
-    A[y, x] = one(eltype(A))
+    A[y, x, a, 1] = one(eltype(A))
 end
 
 
 """
-Sample random trajectories from the joint distribution Prob(s_{1...T} | y_{1...T}).
+Sample position trajectories from the joint distribution
+`Prob(s_{1...T}, a_{1...T} | y_{1...T})`.
 """
-function sample_trajectories(pos_filter, H,
-                             bathymetry,
-                             observations, observation_models,
-                             distances;
-                             tsave = tsave,
-                             n_trajectories,
-                             hops_per_step,
+function sample_trajectories(pos_filter, H, transition_matrix,
+                             bathymetry, observations, observation_models, distances;
+                             tsave=1:100, n_trajectories, hops_per_step,
                              show_progressbar)
-
-    ext = Base.get_extension(@__MODULE__, :CUDAExt)
 
     tmax = maximum(tsave)
     n_tsave = length(tsave)
-    nx, ny = size(pos_filter)[1:2]
+    nx, ny, n_activity = size(pos_filter)[1:3]
 
     trajectories = [zeros(Int, 2, tmax) for _ in 1:n_trajectories]
+    state_tmp = similar(pos_filter, nx, ny, n_activity, 1)
+    previous_distribution = similar(state_tmp)
+    backward_spatial = similar(first(H), nx, ny, 1, 1)
 
-    pos_distribution_tmp = similar(pos_filter, nx, ny, 1)
-
-    pmeter = ProgressMeter.Progress(n_trajectories*(n_tsave-1); desc = "Sample $n_trajectories trajectories...:",
+    pmeter = ProgressMeter.Progress(n_trajectories*(n_tsave-1);
+                                    desc = "Sample $n_trajectories trajectories...:",
                                     output = stderr, enabled = show_progressbar)
 
     for n_trj in 1:n_trajectories
-        pos_distribution_tmp[:,:,1] .= pos_filter[:,:,1,end]
-
-        # Sample initial point
-        trajectories[n_trj][:, end] .= sample_index(pos_distribution_tmp)
+        state_tmp[:,:,:,1] .= pos_filter[:,:,:,end]
+        y, x, a_next = sample_index(state_tmp)
+        trajectories[n_trj][:,tmax] .= (y, x)
+        one_hot!(state_tmp, y, x, a_next)
 
         # jth jump back in time
         for j in (n_tsave-1):-1:1
+            tsave_jump = tsave[j]:1:tsave[j+1]
 
-            tsave_jump = tsave[j]:1:tsave[j+1]    # "internal", reconstructed time-steps
+            # recompute all filter steps between j and j+1
+            pos_filter_jump = similar(pos_filter, nx, ny, n_activity, length(tsave_jump))
+            pos_filter_jump[:,:,:,1] .=
+                pos_filter[:,:,:,time2index(tsave_jump[1], tsave)]
 
-            # -----------
-            # 1) recompute all filter steps between j and j+1
+            prediction = similar(state_tmp)
+            for (i, t) in enumerate(tsave_jump[1:(end-1)])
+                state = @view pos_filter_jump[:,:,:,i:i]
+                predict_state!(prediction, state, H, transition_matrix, bathymetry;
+                               hops_per_step = hops_per_step)
 
-            # holds reconstructed filter results
-            pos_filter_jump = similar(pos_filter, nx, ny, 1, length(tsave_jump))          # P(s_t | y_{1:t})
-
-            pos_filter_jump[:,:,1,1] .= pos_filter[:,:,1,time2index(tsave_jump[1], tsave)]
-
-            for (i,t) in enumerate(tsave_jump[1:(end-1)])
-
-                pos_filter_jump[:,:,1,i+1] .= pos_filter_jump[:,:,1,i]
-
-                # --- solve Fokker-Plank
-                for k in 1:hops_per_step
-                    pos_filter_jump[:,:,1,(i+1):(i+1)] = NNlib.conv(pos_filter_jump[:,:,1:1,(i+1):(i+1)], H, pad=1)
-                end
-
-                # you can't be on land (negative bathymetry)
-                pos_filter_jump .= ifelse.(bathymetry .< 0, 0, pos_filter_jump)
-
-                # --- add observations
-                for k  in eachindex(observations)
-                    p_obs = observation_models[k]
-                    signals = observations[k]
-                    pos_filter_jump[:,:,1,i+1] .*= p_obs.(Ref(signals), Ref(t), bathymetry, view(distances, :,:,k))
-                end
-
-                # --- normalize
-                Z = sum(pos_filter_jump[:,:,1,i+1])
-                isfinite(Z) ||
-                    error("No solution at time point $(t)!")
-                pos_filter_jump[:,:,1,i+1] .= pos_filter_jump[:,:,1,i+1] ./ Z
-
+                next_state = @view pos_filter_jump[:,:,:,i+1:i+1]
+                next_state .= prediction
+                filter_observations!(next_state, t + 1, bathymetry,
+                                     observations, observation_models, distances)
             end
 
-
-            # -----------
-            # 2) sample trajectory
-
+            # sample each preceding joint state conditional on the sampled future state
             for (i, t) in enumerate(reverse(tsave_jump)[2:end])
+                idx = length(tsave_jump) - i
+                previous_distribution .= zero(eltype(previous_distribution))
 
-                idx = length(tsave_jump) - i + 1 # index of pos_filter_jump
-
-                # --- sample position (y,x) ~ pos_distribution_tmp[y,x,1,1]
-                y, x = sample_index(pos_distribution_tmp)
-
-                # inital distribution
-                one_hot!(pos_distribution_tmp, y, x)
-
-                # As everything is zero except [y,x], we can skip the division by P(s_{t+1} | y_{1:t}),
-                # it only changes the scaling that is normalized later anyway.
-                # pos_distribution_tmp .= divzero.(pos_distribution_tmp, pos_filter_jump_no_obs[:,:,1,idx])
-
-                # --- solve Fokker-Plank backwards
-                # K = rot180(H) = H if no advections
-                for k in 1:hops_per_step
-                    pos_distribution_tmp[:,:,1,1] = NNlib.conv(pos_distribution_tmp[:,:,1:1,1:1], H, pad=1)
+                for a_prev in 1:n_activity
+                    backward_spatial[:,:,1,1] .= state_tmp[:,:,a_next,1]
+                    for k in 1:hops_per_step[a_prev]
+                        backward_spatial = NNlib.conv(backward_spatial, H[a_prev], pad=1)
+                    end
+                    previous_distribution[:,:,a_prev,1] .=
+                        pos_filter_jump[:,:,a_prev,idx] .* backward_spatial[:,:,1,1] .*
+                        transition_matrix[a_prev,a_next]
                 end
 
-                # you can't be on land (negative bathymetry)
-                pos_distribution_tmp .= ifelse.(bathymetry .< 0, 0, pos_distribution_tmp)
-
-                pos_distribution_tmp .=  pos_filter_jump[:,:,1,idx-1] .* pos_distribution_tmp
-                pos_distribution_tmp ./= sum(pos_distribution_tmp)
-
-                # --- save
-                trajectories[n_trj][:, t] .= (y, x)
-
+                previous_distribution .= ifelse.(bathymetry .< 0, 0, previous_distribution)
+                previous_distribution ./= sum(previous_distribution)
+                y, x, a_next = sample_index(previous_distribution)
+                trajectories[n_trj][:,t] .= (y, x)
+                one_hot!(state_tmp, y, x, a_next)
             end
 
             ProgressMeter.next!(pmeter)
         end
-
     end
-    return  trajectories
+    return trajectories
 end

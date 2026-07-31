@@ -114,6 +114,34 @@ res.log_p            # Prob(y_t)
 res.tsave            # time points
 ```
 
+### Optional slow/fast activity model
+
+To use separate movement rates for slow and fast activity, pass two movement
+standard deviations together with a transition matrix. Rows of the matrix are
+the previous activity state and columns are the next state; both use the order
+`[slow, fast]`.
+
+```julia
+transition_matrix = [0.8 0.2;
+                     0.3 0.7]
+activity_init = [0.5, 0.5]
+
+res_hmm = track(pos_init = p0, bathymetry = bathymetry_map,
+                tsave = tsave,
+                spatial_resolution = spatial_resolution,
+                movement_std = (60, 140),
+                transition_matrix = transition_matrix,
+                activity_init = activity_init,
+                observations = [depth_signals, acoustic_obs...],
+                observation_models = [p_obs_depth_exponential, acoustic_obs_models...],
+                sensor_positions = [nothing, acoustic_pos...])
+
+res_hmm.activity_filter  # 2 × length(tsave), with rows [slow, fast]
+```
+
+Activity at time `t` selects the movement standard deviation for the move to
+time `t + 1`. If `activity_init` is omitted, it defaults to `[0.5, 0.5]`.
+
 The result of the smoother `res.pos_smoother` can be visualized:
 
 ```@raw html

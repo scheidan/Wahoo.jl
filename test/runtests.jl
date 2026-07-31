@@ -31,6 +31,83 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
     end
 
 
+    @testset "Activity model" begin
+        p0 = zeros(Float32, 9, 9)
+        p0[5,5] = 1
+        bathymetry = ones(Float32, 9, 9)
+        distances = Array{Float32}(undef, 9, 9, 0)
+        kernels_and_hops = [Wahoo.make_kernel(D = sd^2/2, h = 1,
+                                              precision = Float32) for sd in (0.1, 0.2)]
+        H = first.(kernels_and_hops)
+        n_hops = last.(kernels_and_hops)
+        transition_matrix = Float32[0.8 0.2; 0.3 0.7]
+        activity_init = Float32[0.25, 0.75]
+
+        state_filter, _ = Wahoo.run_filter(p0, activity_init, H, transition_matrix,
+                                           bathymetry, Any[], Function[], distances;
+                                           hops_per_step = n_hops, tsave = 1:3,
+                                           show_progressbar = false)
+        activity_filter = dropdims(sum(state_filter, dims=(1, 2)), dims=(1, 2))
+        expected = hcat(activity_init, transition_matrix' * activity_init,
+                        transition_matrix' * transition_matrix' * activity_init)
+
+        @test size(state_filter) == (9, 9, 2, 3)
+        @test activity_filter ≈ expected
+        @test all(sum(state_filter, dims=(1, 2, 3)) .≈ 1)
+
+        # Activity at t controls movement to t + 1.
+        switch_matrix = Float32[0 1; 1 0]
+        switch_filter, _ = Wahoo.run_filter(p0, Float32[1, 0], H, switch_matrix,
+                                            bathymetry, Any[], Function[], distances;
+                                            hops_per_step = n_hops, tsave = 1:2,
+                                            show_progressbar = false)
+        expected_slow_move = Wahoo.NNlib.conv(reshape(p0, 9, 9, 1, 1), H[1], pad=1)
+        @test switch_filter[:,:,1,2] == zeros(Float32, 9, 9)
+        @test switch_filter[:,:,2,2] ≈ expected_slow_move[:,:,1,1]
+
+        # Sparse smoothing must apply the observation at the destination time.
+        function p_obs_test(signals, t, depth, dist)
+            exp(-abs(signals[t] - dist))
+        end
+        signals = Float32[2, 3, 5, 6, 4]
+        obs_distances = reshape(repeat(Float32.(1:9), inner=9), 9, 9, 1)
+        single_H = H[1:1]
+        single_hops = n_hops[1:1]
+        single_transition = ones(Float32, 1, 1)
+        dense_filter, _ = Wahoo.run_filter(p0, Float32[1], single_H, single_transition,
+                                           bathymetry, [signals], [p_obs_test], obs_distances;
+                                           hops_per_step = single_hops, tsave = 1:5,
+                                           show_progressbar = false)
+        sparse_filter, _ = Wahoo.run_filter(p0, Float32[1], single_H, single_transition,
+                                            bathymetry, [signals], [p_obs_test], obs_distances;
+                                            hops_per_step = single_hops, tsave = 1:2:5,
+                                            show_progressbar = false)
+        dense_smoother, _ = Wahoo.run_smoother(dense_filter, single_H, single_transition,
+                                               bathymetry, [signals], [p_obs_test], obs_distances;
+                                               hops_per_step = single_hops, tsave = 1:5,
+                                               show_progressbar = false)
+        sparse_smoother, _ = Wahoo.run_smoother(sparse_filter, single_H, single_transition,
+                                                bathymetry, [signals], [p_obs_test], obs_distances;
+                                                hops_per_step = single_hops, tsave = 1:2:5,
+                                                show_progressbar = false)
+        @test sparse_smoother ≈ dense_smoother[:,:,:,[1, 3, 5]]
+
+        # Sampled positions must be written at their own time point.
+        trajectory_filter = zeros(Float32, 9, 9, 1, 3)
+        trajectory_filter[5,5,1,1] = 1
+        trajectory_filter[5,6,1,2] = 1
+        trajectory_filter[5,7,1,3] = 1
+        trajectory_H = [reshape(Float32[0 0.1 0; 0.1 0.6 0.1; 0 0.1 0], 3, 3, 1, 1)]
+        trajectory = Wahoo.sample_trajectories(trajectory_filter, trajectory_H,
+                                               single_transition, bathymetry,
+                                               Any[], Function[], distances;
+                                               tsave = 1:3, n_trajectories = 1,
+                                               hops_per_step = [1],
+                                               show_progressbar = false)[1]
+        @test trajectory == [5 5 5; 5 6 7]
+    end
+
+
     @testset "Integration tests CPU" begin
 
 
@@ -113,7 +190,34 @@ global_logger(ConsoleLogger(stderr, Logging.Warn)) # disable info logging
 
         # a crude check to see if results have changed
         @test sum(abs2, res.pos_filter) ≈  7.9684896f0
-        @test sum(abs2, res.pos_smoother) ≈ 12.633255f0
+        @test sum(abs2, res.pos_smoother) ≈ 12.602797f0
+
+        transition_matrix = Float32[0.8 0.2; 0.3 0.7]
+        activity_init = Float32[0.25, 0.75]
+        hmm_res = track(pos_init = p0, bathymetry = bathymetry_map,
+                        tsave = 1:3, spatial_resolution = h,
+                        movement_std = (100, 200),
+                        transition_matrix = transition_matrix,
+                        activity_init = activity_init,
+                        observations = Any[], observation_models = Function[],
+                        sensor_positions = Any[], filter = true,
+                        n_trajectories = 1, precision = Float32)
+        @test size(hmm_res.pos_filter) == (size(bathymetry_map)[1:2]..., 1, 3)
+        @test size(hmm_res.pos_smoother) == size(hmm_res.pos_filter)
+        @test size(hmm_res.activity_filter) == (2, 3)
+        @test hmm_res.activity_filter[:,1] == activity_init
+        @test all(sum(hmm_res.activity_filter, dims=1) .≈ 1)
+        @test size(hmm_res.trajectories[1]) == (2, 3)
+
+        hmm_res_default = track(pos_init = p0, bathymetry = bathymetry_map,
+                                tsave = 1:1, spatial_resolution = h,
+                                movement_std = (100, 200),
+                                transition_matrix = transition_matrix,
+                                observations = Any[], observation_models = Function[],
+                                sensor_positions = Any[], smoother = false,
+                                precision = Float32)
+        @test !hasproperty(hmm_res_default, :pos_filter)
+        @test hmm_res_default.activity_filter[:,1] == Float32[0.5, 0.5]
 
         # Test for mismatched inputs
         @test_throws ErrorException track(pos_init = p0, bathymetry = bathymetry_map,

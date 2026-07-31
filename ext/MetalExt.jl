@@ -23,7 +23,7 @@ end
 
 function move_to_GPU(H, bathymetry, observations, dist_acoustic, precision)
 
-    H = MtlArray{precision}(H)
+    H = [MtlArray{precision}(kernel) for kernel in H]
     bathymetry = MtlArray{precision}(bathymetry[:,:,1])
     observations = [to32bitarray(obs, precision) for obs in observations]
     dist_acoustic = MtlArray{precision}(dist_acoustic)
@@ -51,38 +51,41 @@ function Wahoo.sample_index(dist::MtlArray)
     scores = logw .+ G
     # ...and find the index of the maximum score.
     _, idxs = findmax(scores)
-    return Int32(idxs[1]), Int32(idxs[2])
+    return Int32(idxs[1]), Int32(idxs[2]), Int32(idxs[3])
 end
 
 
 # ----
 
 """
-Set all values of A (of size (m,n,1,1)) to zero except A[y,x] to one.
+Set all values of `A` to zero except the joint state at `(y, x, a)`.
 """
-function Wahoo.one_hot!(A::MtlArray, y, x)
+function Wahoo.one_hot!(A::MtlArray, y, x, a)
     # Convert indices to 32-bit integers for efficiency.
     y32 = Int32(y)
     x32 = Int32(x)
+    a32 = Int32(a)
     # Choose thread and threadgroup dimensions (adjust as needed).
     threads = (16, 16)
     groups = (cld(size(A, 1), threads[1]), cld(size(A, 2), threads[2]))
     Metal.@sync begin
-        Metal.@metal threads=threads groups=groups kernel_one_hot!(A, y32, x32)
+        Metal.@metal threads=threads groups=groups kernel_one_hot!(A, y32, x32, a32)
     end
 end
 
-function kernel_one_hot!(A, y, x)
+function kernel_one_hot!(A, y, x, a)
     # Compute global indices for the first and second dimensions.
     pos = Metal.thread_position_in_grid()
     i = Int32(pos.x)
     j = Int32(pos.y)
-    # Update only if within bounds (assumes A has shape (M, N, 1, 1))
+    # Update only if within bounds
     if i <= size(A, 1) && j <= size(A, 2)
-        if i == y && j == x
-            @inbounds A[i, j, 1, 1] = one(eltype(A))
-        else
-            @inbounds A[i, j, 1, 1] = zero(eltype(A))
+        for k in axes(A, 3)
+            if i == y && j == x && k == a
+                @inbounds A[i, j, k, 1] = one(eltype(A))
+            else
+                @inbounds A[i, j, k, 1] = zero(eltype(A))
+            end
         end
     end
     nothing

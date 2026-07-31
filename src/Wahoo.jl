@@ -19,6 +19,8 @@ track(;pos_init::Matrix,
        sensor_positions::Vector,
        spatial_resolution,
        movement_std,
+       transition_matrix = nothing,
+       activity_init = nothing,
        smoother::Bool = true,
        filter::Bool = false,
        n_trajectories::Int = 0,
@@ -35,6 +37,12 @@ Infers the location of the animal based on a diffusion model and smoothing.
 - `bathymetry`: Bathymetric data as `GeoArray`.
 - `spatial_resolution`: the spatial resolution [m] of the `bathymetry`.
 - `movement_std`: Standard deviation of the fish movement within one time step [m].
+  A scalar uses a single movement state. Two values ordered `[slow, fast]`
+  enable the activity model.
+- `transition_matrix = nothing`: Row-stochastic activity transition matrix,
+  with rows denoting the previous state and columns the next state.
+- `activity_init = nothing`: Initial probabilities of the slow and fast states.
+  Defaults to `[0.5, 0.5]`.
 - `observations`: Vector holding all observations. Each element contains the observation of a separate sensor.
 - `observation_models::Vector{Function}`: Vector containing the observation model for each sensor.
 - `sensor_positions`: Vector of tuples of coordinates or `nothing`, i.e. `Vector{Union{Nothing, Tuple{Real, Real}}}`.
@@ -61,6 +69,9 @@ Additionally, if `smoother = true`:
 Additionally, if `filter = true`:
 - `pos_filter`: ``\\Pr(\\mathbf{s}_t \\mid \\mathbf{y}_{1:t})``, the filtered probability distribution of the fish positions.
 
+Additionally, if two movement standard deviations are provided:
+- `activity_filter`: Filtered probabilities of the slow and fast states. Rows
+  correspond to `[slow, fast]` and columns to `tsave`.
 
 """
 function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
@@ -70,6 +81,8 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
                tsave::AbstractVector = 1:100,
                spatial_resolution,
                movement_std,
+               transition_matrix = nothing,
+               activity_init = nothing,
                filter::Bool = false,
                smoother::Bool = true,
                n_trajectories::Int = 0,
@@ -87,10 +100,22 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
         error("The size of `pos_init` $(size(pos_init)) must match the first two dimensions of `bathymetry` $(size(bathymetry)[1:2]).")
     end
 
-    nx, ny = size(pos_init)
+    activity_model = !(movement_std isa Number)
+    movement_std = activity_model ? movement_std : (movement_std,)
+    kernels_and_hops = [make_kernel(D = sd^2/2, h = spatial_resolution,
+                                    precision = precision) for sd in movement_std]
+    H = first.(kernels_and_hops)
+    n_hops = last.(kernels_and_hops)
 
-    # convolution kerel
-    H, n_hops = make_kernel(D = movement_std^2/2, h = spatial_resolution, precision = precision)
+    if activity_model
+        transition_matrix = precision.(transition_matrix)
+        activity_init = isnothing(activity_init) ?
+            fill(one(precision)/length(movement_std), length(movement_std)) :
+            precision.(activity_init)
+    else
+        transition_matrix = ones(precision, 1, 1)
+        activity_init = ones(precision, 1)
+    end
 
     # precompute distances to sensors
     distances = build_distances(sensor_positions, bathymetry, spatial_resolution)
@@ -112,35 +137,33 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
 
     @info "Using $precision for computations"
 
-    pos_filter, log_p = run_filter(pos_init, H,
-                                   bathymetry,
-                                   observations,
-                                   observation_models,
-                                   distances;
-                                   hops_per_step = n_hops, tsave = tsave,
-                                   show_progressbar = show_progressbar)
+    state_filter, log_p = run_filter(pos_init, activity_init, H,
+                                     transition_matrix, bathymetry,
+                                     observations, observation_models,
+                                     distances;
+                                     hops_per_step = n_hops, tsave = tsave,
+                                     show_progressbar = show_progressbar)
 
     if smoother
-        pos_smoother, residence_dist = run_smoother(pos_filter, H,
-                                                    bathymetry,
-                                                    observations,
-                                                    observation_models,
-                                                    distances;
-                                                    hops_per_step = n_hops,
-                                                    tsave = tsave,
-                                                    show_progressbar = show_progressbar)
+        state_smoother, residence_dist = run_smoother(state_filter, H,
+                                                      transition_matrix, bathymetry,
+                                                      observations,
+                                                      observation_models,
+                                                      distances;
+                                                      hops_per_step = n_hops,
+                                                      tsave = tsave,
+                                                      show_progressbar = show_progressbar)
+        pos_smoother = sum(state_smoother, dims=3)
     end
 
     if n_trajectories > 0
-        trajectories =  sample_trajectories(pos_filter, H,
-                                            bathymetry,
-                                            observations,
-                                            observation_models,
-                                            distances;
-                                            tsave = tsave,
-                                            n_trajectories =  n_trajectories,
-                                            hops_per_step = n_hops,
-                                            show_progressbar = show_progressbar)
+        trajectories = sample_trajectories(state_filter, H, transition_matrix,
+                                           bathymetry, observations,
+                                           observation_models, distances;
+                                           tsave = tsave,
+                                           n_trajectories = n_trajectories,
+                                           hops_per_step = n_hops,
+                                           show_progressbar = show_progressbar)
     else
         trajectories = nothing
     end
@@ -155,7 +178,12 @@ function track(;pos_init::Matrix, bathymetry::GeoArrays.GeoArray,
     end
 
     if filter
-        results = merge(results, (pos_filter = Array(pos_filter),))
+        results = merge(results, (pos_filter = Array(sum(state_filter, dims=3)),))
+    end
+
+    if activity_model
+        activity_filter = dropdims(sum(state_filter, dims=(1, 2)), dims=(1, 2))
+        results = merge(results, (activity_filter = Array(activity_filter),))
     end
 
     return results
