@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" role="img"
+     aria-labelledby="title description">
+  <title id="title">Two-state activity model</title>
+  <desc id="description">A dependency graph showing activity controlling the next activity and movement, position controlling the next position and observations, over three time steps.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5"
+            orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3.5 L0,7 Z" fill="#43536a"/>
+    </marker>
+    <style>
+      .edge { fill: none; stroke: #43536a; stroke-width: 2.2; marker-end: url(#arrow); }
+      .activity { fill: #e9f2fb; stroke: #3478a7; }
+      .position { fill: #eaf6ee; stroke: #3d8a57; }
+      .observation { fill: #fff3df; stroke: #b9781f; }
+      .node { stroke-width: 2.4; }
+      .label { fill: #17202a; font: italic 24px Georgia, serif; text-anchor: middle; dominant-baseline: middle; }
+      .time { fill: #536273; font: 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-anchor: middle; }
+      .dots { fill: #536273; font: 25px Georgia, serif; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+  </defs>
+
+  <text class="time" x="140" y="25">time t</text>
+  <text class="time" x="390" y="25">time t + 1</text>
+  <text class="time" x="640" y="25">time t + 2</text>
+
+  <path class="edge" d="M174 80 H356"/>
+  <path class="edge" d="M424 80 H606"/>
+  <path class="edge" d="M174 190 H356"/>
+  <path class="edge" d="M424 190 H606"/>
+  <path class="edge" d="M168 104 L361 167"/>
+  <path class="edge" d="M418 104 L611 167"/>
+  <path class="edge" d="M140 224 V266"/>
+  <path class="edge" d="M390 224 V266"/>
+  <path class="edge" d="M640 224 V266"/>
+
+  <text class="dots" x="35" y="80">⋯</text>
+  <text class="dots" x="765" y="80">⋯</text>
+  <text class="dots" x="35" y="190">⋯</text>
+  <text class="dots" x="765" y="190">⋯</text>
+  <text class="dots" x="35" y="300">⋯</text>
+  <text class="dots" x="765" y="300">⋯</text>
+
+  <circle class="node activity" cx="140" cy="80" r="34"/>
+  <circle class="node activity" cx="390" cy="80" r="34"/>
+  <circle class="node activity" cx="640" cy="80" r="34"/>
+  <circle class="node position" cx="140" cy="190" r="34"/>
+  <circle class="node position" cx="390" cy="190" r="34"/>
+  <circle class="node position" cx="640" cy="190" r="34"/>
+  <circle class="node observation" cx="140" cy="300" r="34"/>
+  <circle class="node observation" cx="390" cy="300" r="34"/>
+  <circle class="node observation" cx="640" cy="300" r="34"/>
+
+  <text class="label" x="140" y="80">a<tspan baseline-shift="sub" font-size="15">t</tspan></text>
+  <text class="label" x="390" y="80">a<tspan baseline-shift="sub" font-size="15">t+1</tspan></text>
+  <text class="label" x="640" y="80">a<tspan baseline-shift="sub" font-size="15">t+2</tspan></text>
+  <text class="label" x="140" y="190">s<tspan baseline-shift="sub" font-size="15">t</tspan></text>
+  <text class="label" x="390" y="190">s<tspan baseline-shift="sub" font-size="15">t+1</tspan></text>
+  <text class="label" x="640" y="190">s<tspan baseline-shift="sub" font-size="15">t+2</tspan></text>
+  <text class="label" x="140" y="300">y<tspan baseline-shift="sub" font-size="15">t</tspan></text>
+  <text class="label" x="390" y="300">y<tspan baseline-shift="sub" font-size="15">t+1</tspan></text>
+  <text class="label" x="640" y="300">y<tspan baseline-shift="sub" font-size="15">t+2</tspan></text>
+</svg>

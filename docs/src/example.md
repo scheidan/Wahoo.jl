@@ -8,10 +8,9 @@ using Wahoo
 import GeoArrays
 using DelimitedFiles: readdlm
 
-# This is optional. If *both* packages are imported,
+# This is optional. If the `CUDA` or `Metal` packages are imported,
 # some computations use the GPU. Otherwise, the CPU is used for everything.
-import CUDA
-import cuDNN
+import Metal
 ```
 
 ### 1) Bathymetry
@@ -114,7 +113,17 @@ res.log_p            # Prob(y_t)
 res.tsave            # time points
 ```
 
-### Optional slow/fast activity model
+
+The result of the smoother `res.pos_smoother` can be visualized:
+
+```@raw html
+<img src="../assets/smoothing_animated.gif" style="width: 75%; height: auto;" />
+```
+
+Note, the code for visualization is not part of Wahoo.
+
+
+### 6) Optional slow/fast activity model
 
 To use separate movement rates for slow and fast activity, pass two movement
 standard deviations together with a transition matrix. Rows of the matrix are
@@ -122,14 +131,14 @@ the previous activity state and columns are the next state; both use the order
 `[slow, fast]`.
 
 ```julia
-transition_matrix = [0.8 0.2;
+transition_matrix = [0.9 0.1;
                      0.3 0.7]
 activity_init = [0.5, 0.5]
 
 res_hmm = track(pos_init = p0, bathymetry = bathymetry_map,
                 tsave = tsave,
                 spatial_resolution = spatial_resolution,
-                movement_std = (60, 140),
+                movement_std = (20, 140),
                 transition_matrix = transition_matrix,
                 activity_init = activity_init,
                 observations = [depth_signals, acoustic_obs...],
@@ -141,11 +150,3 @@ res_hmm.activity  # 2 × length(tsave), with rows [slow, fast]
 
 Activity at time `t` selects the movement standard deviation for the move to
 time `t + 1`. If `activity_init` is omitted, it defaults to `[0.5, 0.5]`.
-
-The result of the smoother `res.pos_smoother` can be visualized:
-
-```@raw html
-<img src="../assets/smoothing_animated.gif" style="width: 75%; height: auto;" />
-```
-
-Note, the code for visualization is not part of Wahoo.

@@ -18,6 +18,7 @@ makedocs(;
         "Manual" => "manual.md",
         "Example" => "example.md",
         "API" => "api.md",
+        "Activity model" => "activity_model.md",
         "Internals" => "internal.md",
     ],
          )
