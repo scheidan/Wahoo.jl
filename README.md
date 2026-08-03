@@ -11,10 +11,19 @@ spatial discretization and employs a convolution-based algorithm
 instead of particle filters. This allows `Wahoo` to perform well even
 for benthic animals in areas with very rugged bathymetry.
 
-
-
 For more information, please see the
 [documentation](https://scheidan.github.io/Wahoo.jl/dev/).
+
+> [!NOTE]
+> Besides the released version, `Wahoo` has two **experimental** branches that may be of interest of you:
+> - Branch `speed_optim`: A version heavily optimized for speed, mainly tested on Metal GPUs.
+> - Branch `two_state_activity`: Implements a hidden Markov model that allows the animal to switch between a `slow` (resting) and a `fast` state.
+>   
+> The experimental branches must be installed from GitHub:
+> ```
+> Pkg.add(url = "https://github.com/scheidan/Wahoo.jl", rev = "branch-name")
+> ```
+
 
 
 ![animated probabilities](docs/src/assets/smoothing_animated.gif)
