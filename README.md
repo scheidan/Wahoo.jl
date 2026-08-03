@@ -15,7 +15,7 @@ For more information, please see the
 [documentation](https://scheidan.github.io/Wahoo.jl/dev/).
 
 > [!NOTE]
-> Besides the released version, `Wahoo` has two **experimental** branches that may be of interest of you:
+> Besides the released version, `Wahoo` has two **experimental** branches that may be of interest for you:
 > - Branch `speed_optim`: A version heavily optimized for speed, mainly tested on Metal GPUs.
 > - Branch `two_state_activity`: Implements a hidden Markov model that allows the animal to switch between a `slow` (resting) and a `fast` state.
 >   
