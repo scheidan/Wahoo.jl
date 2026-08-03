@@ -11,6 +11,11 @@ spatial discretization and employs a convolution-based algorithm
 instead of particle filters. This allows `Wahoo` to perform well even
 for benthic animals in areas with very rugged bathymetry.
 
+*This is an _experimental_ branch that implements two movements
+speeds*
+
+A hidden Markov Model is used to infer the activity (`slow` or `fast`)
+for each time step.
 
 
 For more information, please see the
